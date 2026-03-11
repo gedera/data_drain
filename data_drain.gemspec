@@ -6,35 +6,30 @@ Gem::Specification.new do |spec|
   spec.name = "data_drain"
   spec.version = DataDrain::VERSION
   spec.authors = ["Gabriel"]
-  spec.email = ["gab.edera@gmail.com"]
+  spec.email = ["tu@email.com"]
 
-  spec.summary = "TODO: Write a short summary, because RubyGems requires one."
-  spec.description = "TODO: Write a longer description or delete this line."
-  spec.homepage = "TODO: Put your gem's website or public repo URL here."
-  spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.2.0"
+  spec.summary = "Micro-framework para drenar datos de PostgreSQL a Parquet vía DuckDB."
+  spec.description = "Extrae datos transaccionales, los archiva en un Data Lake (S3/Local) " \
+                     "en formato Parquet usando Hive Partitioning, y purga el origen de forma segura."
+  spec.homepage = "https://github.com/tu-usuario/data_drain"
+  spec.required_ruby_version = ">= 3.0.0"
 
+  # Evita subidas accidentales a RubyGems públicos si es privada
   spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
-  spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "TODO: Put your gem's public repo URL here."
-  spec.metadata["changelog_uri"] = "TODO: Put your gem's CHANGELOG.md URL here."
 
-  # Specify which files should be added to the gem when it is released.
-  # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
-  gemspec = File.basename(__FILE__)
-  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
-    ls.readlines("\x0", chomp: true).reject do |f|
-      (f == gemspec) ||
-        f.start_with?(*%w[bin/ Gemfile .gitignore .rspec spec/ .github/ .rubocop.yml])
+  spec.files = Dir.chdir(__dir__) do
+    `git ls-files -z`.split("\x0").reject do |f|
+      (File.expand_path(f) == __FILE__) ||
+        f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
     end
   end
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  # Uncomment to register a new dependency of your gem
-  # spec.add_dependency "example-gem", "~> 1.0"
-
-  # For more information and examples about making a new gem, check out our
-  # guide at: https://bundler.io/guides/creating_gem.html
+  # 💡 Dependencias Core de la Gema
+  spec.add_dependency "activemodel", ">= 6.0"
+  spec.add_dependency "aws-sdk-s3", "~> 1.114"
+  spec.add_dependency "duckdb", "~> 1.4"
+  spec.add_dependency "pg", ">= 1.2"
 end
