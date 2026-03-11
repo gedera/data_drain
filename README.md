@@ -1,28 +1,24 @@
 # DataDrain 🚰
 
-DataDrain es un micro-framework de nivel empresarial diseñado para extraer, archivar y purgar (drenar) datos históricos desde bases de datos PostgreSQL transaccionales hacia un Data Lake analítico basado en Apache Parquet.
+DataDrain es un micro-framework de nivel empresarial diseñado para extraer, archivar y purgar datos históricos desde bases de datos PostgreSQL transaccionales, así como para **ingerir archivos crudos (CSV, JSON, Parquet)**, hacia un Data Lake analítico.
 
-Utiliza **DuckDB** en memoria para lograr velocidades de procesamiento y compresión extremas, y garantiza la retención segura de datos mediante un chequeo de integridad estricto antes de purgar la base de datos de origen.
+Utiliza **DuckDB** en memoria para lograr velocidades de procesamiento y compresión extremas. Garantiza la retención segura de datos mediante chequeos de integridad estrictos antes de purgar las bases de datos de origen, y automatiza la conversión y subida de archivos pesados a la nube.
 
 ## Características Principales
 
-* **ETL de Alto Rendimiento:** Transfiere millones de registros directamente desde Postgres a Parquet utilizando DuckDB sin cargar los objetos en la memoria RAM de Ruby.
-* **Hive Partitioning:** Organiza automáticamente los archivos en carpetas optimizadas (`year=X/month=Y/tenant_id=Z`).
-* **Storage Adapters:** Soporte nativo para almacenamiento en Disco Local y en la nube mediante Amazon S3.
+* **ETL de Alto Rendimiento:** Transfiere millones de registros desde Postgres a Parquet utilizando DuckDB sin cargar los objetos en la memoria RAM de Ruby.
+* **File Ingestion:** Convierte archivos crudos masivos (ej. logs de Netflow en CSV) a Parquet (ZSTD) y los sube directamente a S3 en milisegundos.
+* **Hive Partitioning:** Organiza automáticamente los archivos en carpetas optimizadas para consultas (`year=X/month=Y/tenant_id=Z`).
+* **Storage Adapters:** Soporte nativo y transparente para almacenamiento en Disco Local y AWS S3.
 * **Integridad Garantizada:** Verifica matemáticamente que los datos exportados coincidan exactamente con el origen antes de ejecutar sentencias `DELETE`.
 * **ORM Analítico Integrado:** Incluye una clase base (`DataDrain::Record`) compatible con `ActiveModel` para consultar y destruir particiones históricas de forma idiomática.
-* **Casteo Inteligente:** Incluye un tipo `:json` personalizado para hidratar atributos JSON/JSONB nativamente.
 
 ## Instalación
 
-Agrega esta línea al `Gemfile` de tu aplicación:
+Agrega esta línea al `Gemfile` de tu aplicación o microservicio:
 
 ```ruby
-# Para desarrollo local / monorepo
-gem 'data_drain', path: '../data_drain'
-
-# O desde un repositorio Git privado
-# gem 'data_drain', git: '[https://github.com/tu-organizacion/data_drain.git](https://github.com/tu-organizacion/data_drain.git)'
+gem 'data_drain', git: '[https://github.com/tu-organizacion/data_drain.git](https://github.com/tu-organizacion/data_drain.git)', branch: 'main'
 ```
 
 Y ejecuta:
@@ -40,13 +36,13 @@ DataDrain.configure do |config|
   config.storage_mode = ENV.fetch('STORAGE_MODE', 'local').to_sym
   config.base_path    = Rails.root.join('storage', 'cold_storage').to_s
   
-  # AWS S3 (Solo requerido si storage_mode es :s3)
+  # AWS S3 (Requerido solo si storage_mode es :s3)
   # config.aws_region = ENV['AWS_REGION']
   # config.aws_access_key_id = ENV['AWS_ACCESS_KEY_ID']
   # config.aws_secret_access_key = ENV['AWS_SECRET_ACCESS_KEY']
 
-  # Base de Datos PostgreSQL de Origen
-  config.db_host = ENV.fetch('DB_HOST', '127.0.0.1') # Usar IP para forzar TCP/IP
+  # Base de Datos PostgreSQL de Origen (Requerido solo para DataDrain::Engine)
+  config.db_host = ENV.fetch('DB_HOST', '127.0.0.1')
   config.db_port = ENV.fetch('DB_PORT', '5432')
   config.db_user = ENV.fetch('DB_USER', 'postgres')
   config.db_pass = ENV.fetch('DB_PASS', '')
@@ -61,18 +57,36 @@ end
 
 ## Uso
 
-El framework se divide en dos grandes responsabilidades: **Extracción (Engine)** y **Consulta (Record)**.
+El framework provee tres herramientas principales: **Ingestor de Archivos**, **Drenaje de Base de Datos**, y el **ORM Analítico**.
 
-### 1. Extracción y Purga (El Motor)
+### 1. Ingestión de Archivos Crudos (FileIngestor)
 
-Para archivar datos, instancia el `DataDrain::Engine` pasando las opciones de rango de tiempo y las claves de partición, y ejecuta el método `#call`.
+Ideal para servicios que generan grandes volúmenes de datos (ej. métricas de Netflow). Toma un archivo local, lo transforma, lo comprime a Parquet y lo sube particionado a S3.
 
-Es ideal ejecutar esto desde una tarea Rake o un Job programado (ej. Sidekiq-Cron) para crear una **Ventana de Retención Rodante (Rolling Window)**.
+```ruby
+# Un archivo generado temporalmente por tu servicio
+archivo_temporal = "/tmp/netflow_metrics_1600.csv"
+
+ingestor = DataDrain::FileIngestor.new(
+  source_path: archivo_temporal,
+  folder_name: 'netflow',
+  # Particionamos dinámicamente según columnas extraídas al vuelo
+  partition_keys: %w[year month isp_id], 
+  # Transformación SQL ejecutada por DuckDB durante la lectura
+  select_sql: "*, EXTRACT(YEAR FROM timestamp) AS year, EXTRACT(MONTH FROM timestamp) AS month",
+  delete_after_upload: true # Limpia el archivo temporal al terminar
+)
+
+ingestor.call
+```
+
+### 2. Extracción y Purga de BD (Engine)
+
+Ideal para crear Ventanas Rodantes de retención (ej. mantener solo 6 meses de datos vivos en Postgres y archivar el resto).
 
 ```ruby
 # lib/tasks/archive.rake
 task versions: :environment do
-  # Queremos archivar un mes específico de hace 6 meses
   target_date = 6.months.ago.beginning_of_month
 
   select_sql = <<~SQL
@@ -91,15 +105,15 @@ task versions: :environment do
     table_name:     'versions',
     select_sql:     select_sql,
     partition_keys: %w[year month isp_id],
-    where_clause:   "event = 'update'" # Opcional: Filtro extra
+    where_clause:   "event = 'update'"
   )
 
-  # El motor cuenta, exporta a Parquet, verifica integridad y purga Postgres.
+  # Cuenta, exporta a Parquet, verifica integridad y purga Postgres.
   engine.call 
 end
 ```
 
-### 2. Consultar el Data Lake (El ORM Analítico)
+### 3. Consultar el Data Lake (Record)
 
 Para consultar los datos archivados sin salir de Ruby, crea un modelo que herede de `DataDrain::Record`.
 
@@ -116,41 +130,40 @@ class ArchivedVersion < DataDrain::Record
   attribute :whodunnit, :string
   attribute :created_at, :datetime
 
-  # Utiliza el tipo :json provisto por la gema para hidratar Hashes automáticamente
+  # Utiliza el tipo :json provisto por la gema para hidratar Hashes
   attribute :object, :json
   attribute :object_changes, :json
 end
 ```
 
-Ahora puedes consultar tus archivos Parquet (ya sea en Local o en S3) usando una interfaz familiar similar a ActiveRecord:
+Consultas altamente optimizadas mediante Hive Partitioning:
 
 ```ruby
-# Buscar por ID (dentro de un año y mes específico para máxima velocidad)
-version = ArchivedVersion.find("un-uuid", year: 2026, month: 3)
+# Búsqueda puntual hiper-rápida aislando las particiones
+version = ArchivedVersion.find("un-uuid", year: 2026, month: 3, isp_id: 42)
 puts version.object_changes # => {"status" => ["active", "suspended"]}
 
-# Buscar los últimos registros de un inquilino (tenant) en un mes
-history = ArchivedVersion.where(limit: 10, year: 2026, month: 3, isp_id: "uuid-del-isp")
+# Colecciones
+history = ArchivedVersion.where(limit: 10, year: 2026, month: 3, isp_id: 42)
 ```
 
-### 3. Destrucción de Datos (Derecho al Olvido / Retención)
+### 4. Destrucción de Datos (Retención y Cumplimiento)
 
-El framework permite eliminar físicamente carpetas completas de particiones utilizando comodines (omitiendo claves).
+El framework permite eliminar físicamente carpetas completas en S3 o Local utilizando comodines.
 
 ```ruby
 # Elimina todo el historial de un cliente en específico a través de todos los años
-ArchivedVersion.destroy_all(isp_id: "uuid-del-cliente")
+ArchivedVersion.destroy_all(isp_id: 42)
 
-# Elimina todos los datos de marzo de 2024, sin importar el isp_id
+# Elimina todos los datos de marzo de 2024 globalmente
 ArchivedVersion.destroy_all(year: 2024, month: 3)
 ```
 
 ## Arquitectura
 
-DataDrain implementa el patrón **Storage Adapter**, lo que permite aislar completamente la lógica del sistema de archivos o la nube del motor de procesamiento. 
-* DuckDB mantiene una conexión Thread-Safe persistente para evitar recargar extensiones y maximizar el rendimiento de las consultas web.
-* Las consultas `find` implementan mitigación de Inyección SQL.
-* Las purgas en la base de datos de origen utilizan el driver nativo `pg` para evitar los cuellos de botella de instanciación de memoria de ActiveRecord.
+DataDrain implementa el patrón **Storage Adapter**, lo que permite aislar completamente la lógica del sistema de archivos de los motores de procesamiento. 
+* DuckDB mantiene una conexión persistente (`Thread-Safe`) para maximizar el rendimiento de las consultas web.
+* El ORM Analítico incluye sanitización de parámetros para prevenir Inyección SQL al consultar archivos Parquet.
 
 ## Licencia
 
