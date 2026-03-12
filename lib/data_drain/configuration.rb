@@ -5,14 +5,13 @@ require "logger"
 module DataDrain
   # Contenedor para todas las opciones de configuración del motor DataDrain.
   class Configuration
-    attr_accessor :storage_mode, :base_path, :aws_region,
+    attr_accessor :storage_mode, :aws_region,
       :aws_access_key_id, :aws_secret_access_key,
       :db_host, :db_port, :db_user, :db_pass, :db_name,
       :batch_size, :throttle_delay, :logger
 
     def initialize
       @storage_mode   = :local
-      @base_path      = "storage/cold_storage"
       @db_host        = "127.0.0.1"
       @db_port        = 5432
       @batch_size     = 5000

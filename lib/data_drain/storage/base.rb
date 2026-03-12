@@ -28,27 +28,30 @@ module DataDrain
 
       # Prepara el directorio destino antes de una exportación (ej. crear carpetas).
       #
+      # @param bucket [String] nombre del bucket tanto local o de S3.
       # @param folder_name [String] Nombre de la carpeta principal de la tabla.
-      def prepare_export_path(folder_name)
+      def prepare_export_path(bucket, folder_name)
         # Operación nula por defecto. Las subclases pueden sobreescribirlo.
       end
 
       # Construye la ruta de lectura compatible con la función `read_parquet` de DuckDB.
       #
+      # @param bucket [String] nombre del bucket tanto local o de S3.
       # @param folder_name [String] Carpeta de la tabla (ej. 'versions').
       # @param partition_path [String, nil] Ruta parcial de particiones (ej. 'year=2026/month=3').
       # @return [String] Ruta completa con comodines (ej. '.../**/*.parquet').
-      def build_path(folder_name, partition_path)
+      def build_path(bucket, folder_name, partition_path)
         raise NotImplementedError, "#{self.class} debe implementar #build_path"
       end
 
       # Elimina físicamente las particiones que coincidan con los criterios.
       #
+      # @param bucket [String] nombre del bucket tanto local o de S3.
       # @param folder_name [String] Carpeta de la tabla.
       # @param partition_keys [Array<Symbol>] Claves de partición esperadas.
       # @param partitions [Hash] Valores de las particiones a eliminar (puede contener nulos).
       # @return [Integer] Cantidad de particiones o archivos eliminados.
-      def destroy_partitions(folder_name, partition_keys, partitions)
+      def destroy_partitions(bucket, folder_name, partition_keys, partitions)
         raise NotImplementedError, "#{self.class} debe implementar #destroy_partitions"
       end
     end

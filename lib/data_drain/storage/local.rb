@@ -13,31 +13,34 @@ module DataDrain
       end
 
       # Crea la jerarquía de carpetas en el disco si no existe.
+      # @param bucket [String]
       # @param folder_name [String]
-      def prepare_export_path(folder_name)
-        FileUtils.mkdir_p(File.join(@config.base_path, folder_name))
+      def prepare_export_path(bucket, folder_name)
+        FileUtils.mkdir_p(File.join(bucket, folder_name))
       end
 
+      # @param bucket [String]
       # @param folder_name [String]
       # @param partition_path [String, nil]
       # @return [String]
-      def build_path(folder_name, partition_path)
-        base = File.join(@config.base_path, folder_name)
+      def build_path(bucket, folder_name, partition_path)
+        base = File.join(bucket, folder_name)
         base = File.join(base, partition_path) if partition_path && !partition_path.empty?
         "#{base}/**/*.parquet"
       end
 
+      # @param bucket [String]
       # @param folder_name [String]
       # @param partition_keys [Array<Symbol>]
       # @param partitions [Hash]
       # @return [Integer]
-      def destroy_partitions(folder_name, partition_keys, partitions)
+      def destroy_partitions(bucket, folder_name, partition_keys, partitions)
         path_parts = partition_keys.map do |key|
           val = partitions[key]
           val.nil? || val.to_s.empty? ? "#{key}=*" : "#{key}=#{val}"
         end
 
-        pattern = File.join(@config.base_path, folder_name, path_parts.join("/"))
+        pattern = File.join(bucket, folder_name, path_parts.join("/"))
         folders_to_delete = Dir.glob(pattern)
 
         return 0 if folders_to_delete.empty?

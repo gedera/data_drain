@@ -29,6 +29,7 @@ module DataDrain
       @partition_keys = options.fetch(:partition_keys)
       @primary_key    = options.fetch(:primary_key, "id")
       @where_clause   = options[:where_clause]
+      @bucket         = options[:bucket]
 
       @config  = DataDrain.configuration
       @logger  = @config.logger
@@ -102,7 +103,7 @@ module DataDrain
       @adapter.prepare_export_path(@folder_name)
 
       # Determinamos el path base de destino según el adaptador
-      dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@config.base_path}/#{@folder_name}/" : File.join(@config.base_path, @folder_name, "")
+      dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@bucket}/#{@folder_name}/" : File.join(@bucket, @folder_name, "")
 
       query = <<~SQL
         COPY (

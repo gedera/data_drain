@@ -18,6 +18,7 @@ module DataDrain
     include ActiveModel::Model
     include ActiveModel::Attributes
 
+    class_attribute :bucket
     class_attribute :folder_name
     class_attribute :partition_keys
 
@@ -81,7 +82,7 @@ module DataDrain
       adapter = DataDrain::Storage.adapter
       DataDrain.configuration.logger.info "[DataDrain] 🗑️ Ejecutando destroy_all en #{folder_name} con: #{partitions.inspect}"
 
-      adapter.destroy_partitions(folder_name, partition_keys, partitions)
+      adapter.destroy_partitions(bucket, folder_name, partition_keys, partitions)
     end
 
     # @return [String] Representación legible en consola.
@@ -101,7 +102,7 @@ module DataDrain
       # @return [String]
       def build_query_path(partitions)
         partition_path = partitions.map { |k, v| "#{k}=#{v}" }.join("/")
-        DataDrain::Storage.adapter.build_path(folder_name, partition_path)
+        DataDrain::Storage.adapter.build_path(bucket, folder_name, partition_path)
       end
 
       # @api private

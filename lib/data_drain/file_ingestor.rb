@@ -17,6 +17,7 @@ module DataDrain
       @partition_keys      = options.fetch(:partition_keys, [])
       @select_sql          = options.fetch(:select_sql, "*")
       @delete_after_upload = options.fetch(:delete_after_upload, true)
+      @bucket              = options[:bucket]
 
       @config  = DataDrain.configuration
       @logger  = @config.logger
@@ -52,7 +53,7 @@ module DataDrain
 
       # 2. Exportación / Subida
       @adapter.prepare_export_path(@folder_name)
-      dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@config.base_path}/#{@folder_name}/" : File.join(@config.base_path, @folder_name, "")
+      dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@bucket}/#{@folder_name}/" : File.join(@bucket, @folder_name, "")
 
       partition_clause = @partition_keys.any? ? "PARTITION_BY (#{@partition_keys.join(', ')})," : ""
 
