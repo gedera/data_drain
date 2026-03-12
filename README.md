@@ -34,8 +34,7 @@ Crea un inicializador en tu aplicación (ej. `config/initializers/data_drain.rb`
 DataDrain.configure do |config|
   # Almacenamiento (:local o :s3)
   config.storage_mode = ENV.fetch('STORAGE_MODE', 'local').to_sym
-  config.base_path    = Rails.root.join('storage', 'cold_storage').to_s
-  
+
   # AWS S3 (Requerido solo si storage_mode es :s3)
   # config.aws_region = ENV['AWS_REGION']
   # config.aws_access_key_id = ENV['AWS_ACCESS_KEY_ID']
@@ -68,10 +67,11 @@ Ideal para servicios que generan grandes volúmenes de datos (ej. métricas de N
 archivo_temporal = "/tmp/netflow_metrics_1600.csv"
 
 ingestor = DataDrain::FileIngestor.new(
+  bucket: 'my-bucket-store',
   source_path: archivo_temporal,
   folder_name: 'netflow',
   # Particionamos dinámicamente según columnas extraídas al vuelo
-  partition_keys: %w[year month isp_id], 
+  partition_keys: %w[year month isp_id],
   # Transformación SQL ejecutada por DuckDB durante la lectura
   select_sql: "*, EXTRACT(YEAR FROM timestamp) AS year, EXTRACT(MONTH FROM timestamp) AS month",
   delete_after_upload: true # Limpia el archivo temporal al terminar
@@ -100,6 +100,7 @@ task versions: :environment do
   SQL
 
   engine = DataDrain::Engine.new(
+    bucket:         'my-bucket-store',
     start_date:     target_date.beginning_of_month,
     end_date:       target_date.end_of_month,
     table_name:     'versions',
@@ -109,7 +110,7 @@ task versions: :environment do
   )
 
   # Cuenta, exporta a Parquet, verifica integridad y purga Postgres.
-  engine.call 
+  engine.call
 end
 ```
 
@@ -120,6 +121,7 @@ Para consultar los datos archivados sin salir de Ruby, crea un modelo que herede
 ```ruby
 # app/models/archived_version.rb
 class ArchivedVersion < DataDrain::Record
+  self.bucket = 'my-bucket-storage'
   self.folder_name = 'versions'
   self.partition_keys = [:year, :month, :isp_id]
 
