@@ -1,15 +1,26 @@
 # frozen_string_literal: true
 
 require "data_drain"
+require "fileutils" # Necesario para limpiar la carpeta tmp
 
 RSpec.configure do |config|
-  # Enable flags like --only-failures and --next-failure
   config.example_status_persistence_file_path = ".rspec_status"
-
-  # Disable RSpec exposing methods globally on `Module` and `main`
   config.disable_monkey_patching!
 
   config.expect_with :rspec do |c|
     c.syntax = :expect
+  end
+
+  # 💡 Forzamos la configuración de la gema para testing
+  config.before(:suite) do
+    DataDrain.configure do |c|
+      c.storage_mode = :local
+      c.logger       = Logger.new(nil) # Silencia los logs en consola durante los tests
+    end
+  end
+
+  # 💡 Limpiamos el "Data Lake local" temporal después de cada prueba
+  config.after(:each) do
+    FileUtils.rm_rf("tmp/test_lake")
   end
 end
