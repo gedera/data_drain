@@ -100,7 +100,7 @@ module DataDrain
     # @api private
     def export_to_parquet
       # 💡 Magia del Adapter: Si es local crea las carpetas, si es S3 no hace nada.
-      @adapter.prepare_export_path(@folder_name)
+      @adapter.prepare_export_path(@bucket, @folder_name)
 
       # Determinamos el path base de destino según el adaptador
       dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@bucket}/#{@folder_name}/" : File.join(@bucket, @folder_name, "")
@@ -125,7 +125,7 @@ module DataDrain
     # @return [Boolean]
     def verify_integrity
       # 💡 Magia del Adapter: Construye la ruta de búsqueda global ('**/*.parquet')
-      archive_path = @adapter.build_path(@folder_name, nil)
+      archive_path = @adapter.build_path(@bucket, @folder_name, nil)
 
       begin
         query = <<~SQL
