@@ -89,11 +89,14 @@ module DataDrain
     # @api private
     # @return [Integer]
     def get_postgres_count
+      pg_sql = "SELECT COUNT(*) FROM public.#{@table_name} WHERE #{base_where_sql}"
+
       query = <<~SQL
         SELECT COUNT(*)
-        FROM postgres_query('#{@config.duckdb_connection_string}', 'public', '#{@table_name}')
+        FROM postgres_query('#{@config.duckdb_connection_string}', '#{pg_sql}')
         WHERE #{base_where_sql}
       SQL
+
       @duckdb.query(query).first.first
     end
 
@@ -105,11 +108,12 @@ module DataDrain
       # Determinamos el path base de destino según el adaptador
       dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@bucket}/#{@folder_name}/" : File.join(@bucket, @folder_name, "")
 
+      pg_sql = "SELECT #{@select_sql} FROM public.#{@table_name} WHERE #{base_where_sql}"
+
       query = <<~SQL
         COPY (
           SELECT #{@select_sql}
-          FROM postgres_query('#{@config.duckdb_connection_string}', 'public', '#{@table_name}')
-          WHERE #{base_where_sql}
+          FROM postgres_query('#{@config.duckdb_connection_string}', '#{pg_sql}')
         ) TO '#{dest_path}'
         (
           FORMAT PARQUET,
