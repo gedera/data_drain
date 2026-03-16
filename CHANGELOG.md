@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+## [0.1.8] - 2026-03-16
+
+- Fix: Se cambió la cadena de conexión de DuckDB a formato URI para propagar el timeout de sesión en el ATTACH.
+
 ## [0.1.7] - 2026-03-16
 
 - Se agrego soporte para idle_in_transaction_session_timeout.

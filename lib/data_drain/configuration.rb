@@ -25,7 +25,7 @@ module DataDrain
 
     # @return [String] Cadena de conexión optimizada para DuckDB.
     def duckdb_connection_string
-      "host=#{@db_host} port=#{@db_port} dbname=#{@db_name} user=#{@db_user} password=#{@db_pass}"
+      "postgresql://#{@db_user}:#{@db_pass}@#{@db_host}:#{@db_port}/#{@db_name}?options=-c%20idle_in_transaction_session_timeout%3D#{@idle_in_transaction_session_timeout}"
     end
   end
 end
