@@ -37,6 +37,9 @@ module DataDrain
         return false
       end
 
+      @duckdb.query("SET max_memory='#{@config.limit_ram}';") if @config.limit_ram.present?
+      @duckdb.query("SET temp_directory='#{@config.tmp_directory}'") if @config.tmp_directory.present?
+
       @adapter.setup_duckdb(@duckdb)
 
       # Determinamos la función lectora de DuckDB según la extensión del archivo

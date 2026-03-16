@@ -47,12 +47,20 @@ DataDrain.configure do |config|
   config.db_pass = ENV.fetch('DB_PASS', '')
   config.db_name = ENV.fetch('DB_NAME', 'core_production')
 
-  # Rendimiento y Tuning
+  # Rendimiento y Tuning de Postgres
   config.batch_size     = 5000 # Registros a borrar por transacción
   config.throttle_delay = 0.5  # Segundos de pausa entre borrados
   config.logger         = Rails.logger
 
+  # Tuning de DuckDB
+  # Límite máximo de RAM para las consultas en memoria de DuckDB (ej. '2GB', '512MB').
+  # Evita que el proceso OOM (Out Of Memory) si el contenedor o servidor tiene memoria limitada.
   config.limit_ram      = '2GB'
+  
+  # Directorio temporal de DuckDB para desbordar memoria (spill to disk) durante
+  # transformaciones pesadas o creación de archivos Parquet masivos.
+  # Es muy recomendable que este directorio resida en un disco SSD/NVMe rápido.
+  config.tmp_directory  = '/tmp/duckdb_work'
 end
 ```
 
