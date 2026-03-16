@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+## [0.1.1] - 2026-03-16
+
+- Se agrega al configure la posibliidad de agregar el limit de ram para duckdb.
+
 ## [0.1.0] - 2026-03-11
 
 - Initial release

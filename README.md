@@ -51,6 +51,8 @@ DataDrain.configure do |config|
   config.batch_size     = 5000 # Registros a borrar por transacción
   config.throttle_delay = 0.5  # Segundos de pausa entre borrados
   config.logger         = Rails.logger
+
+  config.limit_ram      = '2GB'
 end
 ```
 
