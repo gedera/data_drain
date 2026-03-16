@@ -91,7 +91,7 @@ module DataDrain
     def get_postgres_count
       query = <<~SQL
         SELECT COUNT(*)
-        FROM postgres_scan('#{@config.duckdb_connection_string}', 'public', '#{@table_name}')
+        FROM postgres_query('#{@config.duckdb_connection_string}', 'public', '#{@table_name}')
         WHERE #{base_where_sql}
       SQL
       @duckdb.query(query).first.first
@@ -108,7 +108,7 @@ module DataDrain
       query = <<~SQL
         COPY (
           SELECT #{@select_sql}
-          FROM postgres_scan('#{@config.duckdb_connection_string}', 'public', '#{@table_name}')
+          FROM postgres_query('#{@config.duckdb_connection_string}', 'public', '#{@table_name}')
           WHERE #{base_where_sql}
         ) TO '#{dest_path}'
         (
