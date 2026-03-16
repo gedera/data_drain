@@ -33,6 +33,7 @@ RSpec.describe DataDrain::Engine do
     # 1. Setup
     expect(mock_duckdb).to receive(:query).with(/INSTALL postgres/).ordered
     expect(mock_duckdb).to receive(:query).with(/SET max_memory/).ordered
+    expect(mock_duckdb).to receive(:query).with(/SET temp_directory/).ordered
 
     # 2. Conteo en Postgres (Simulamos que hay 100 registros)
     expect(mock_duckdb).to receive(:query).with(/SELECT COUNT\(\*\)\nFROM postgres_scan/).ordered.and_return([[100]])
@@ -52,7 +53,7 @@ RSpec.describe DataDrain::Engine do
 
   it "aborta la purga y retorna false si la integridad falla" do
     # Ignoramos los querys de setup
-    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory/)
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory/)
 
     # Postgres dice que hay 100
     allow(mock_duckdb).to receive(:query).with(/SELECT COUNT\(\*\)\nFROM postgres_scan/).and_return([[100]])

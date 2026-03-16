@@ -30,6 +30,11 @@ module DataDrain
       Thread.current[:data_drain_duckdb_conn] ||= begin
         db = DuckDB::Database.open(":memory:")
         conn = db.connect
+
+        config = DataDrain.configuration
+        conn.query("SET max_memory='#{config.limit_ram}';") if config.limit_ram.present?
+        conn.query("SET temp_directory='#{config.tmp_directory}'") if config.tmp_directory.present?
+
         DataDrain::Storage.adapter.setup_duckdb(conn)
         conn
       end
