@@ -1,8 +1,12 @@
 ## [Unreleased]
 
+## [0.1.6] - 2026-03-16
+
+- Se agrego el tem_directory para duckdb.
+
 ## [0.1.5] - 2026-03-16
 
-- Se agrego el attacha para duckdb.
+- Se agrego el attach para duckdb.
 
 ## [0.1.4] - 2026-03-16
 
