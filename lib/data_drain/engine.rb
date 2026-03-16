@@ -80,7 +80,7 @@ module DataDrain
     # @api private
     def setup_duckdb
       @duckdb.query("INSTALL postgres; LOAD postgres;")
-      @duckdb.query("SET max_memory='2GB';")
+      @duckdb.query("SET max_memory='#{@config.limit_ram}';") if @config.limit_ram.present?
 
       # 💡 Magia del Adapter: Él sabe si cargar httpfs y setear credenciales o no hacer nada
       @adapter.setup_duckdb(@duckdb)
