@@ -44,6 +44,7 @@ RSpec.describe DataDrain::Engine do
     expect(mock_duckdb).to receive(:query).with(/FROM read_parquet/).ordered.and_return([[100]])
 
     # 5. Purga en Postgres
+    allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
     allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0) # Borra 100 en la primera iteración, 0 en la segunda (sale del loop)
     expect(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).twice.and_return(mock_pg_result)
 

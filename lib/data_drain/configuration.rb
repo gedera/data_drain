@@ -8,7 +8,8 @@ module DataDrain
     attr_accessor :storage_mode, :aws_region,
       :aws_access_key_id, :aws_secret_access_key,
       :db_host, :db_port, :db_user, :db_pass, :db_name,
-      :batch_size, :throttle_delay, :logger, :limit_ram, :tmp_directory
+      :batch_size, :throttle_delay, :logger, :limit_ram, :tmp_directory,
+      :idle_in_transaction_session_timeout
 
     def initialize
       @storage_mode   = :local
@@ -18,6 +19,7 @@ module DataDrain
       @throttle_delay = 0.5
       @limit_ram      = nil # eg 2GB
       @tmp_directory  = nil # eg /tmp/duckdb_work
+      @idle_in_transaction_session_timeout = 0
       @logger         = Logger.new($stdout)
     end
 

@@ -157,6 +157,10 @@ module DataDrain
         dbname:   @config.db_name
       )
 
+      if @config.idle_in_transaction_session_timeout.present?
+        conn.exec("SET idle_in_transaction_session_timeout = #{@config.idle_in_transaction_session_timeout};")
+      end
+
       loop do
         sql = <<~SQL
           DELETE FROM #{@table_name}
