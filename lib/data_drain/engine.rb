@@ -89,14 +89,8 @@ module DataDrain
     # @api private
     # @return [Integer]
     def get_postgres_count
-      pg_sql = "SELECT COUNT(*) FROM public.#{@table_name} WHERE #{base_where_sql}"
-
-      query = <<~SQL
-        SELECT COUNT(*)
-        FROM postgres_query('#{@config.duckdb_connection_string}', '#{pg_sql}')
-        WHERE #{base_where_sql}
-      SQL
-
+      pg_sql = "SELECT COUNT(*) AS row_count FROM public.#{@table_name} WHERE #{base_where_sql}"
+      query = "SELECT row_count FROM postgres_query('#{@config.duckdb_connection_string}', '#{pg_sql}')"
       @duckdb.query(query).first.first
     end
 
