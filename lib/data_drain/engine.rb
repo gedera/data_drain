@@ -81,6 +81,7 @@ module DataDrain
     def setup_duckdb
       @duckdb.query("INSTALL postgres; LOAD postgres;")
       @duckdb.query("SET max_memory='#{@config.limit_ram}';") if @config.limit_ram.present?
+      @duckdb.query("ATTACH '#{@config.duckdb_connection_string}' AS pg_source (TYPE POSTGRES, READ_ONLY)")
 
       # 💡 Magia del Adapter: Él sabe si cargar httpfs y setear credenciales o no hacer nada
       @adapter.setup_duckdb(@duckdb)
@@ -91,7 +92,7 @@ module DataDrain
     def get_postgres_count
       pg_sql = "SELECT COUNT(*) AS row_count FROM public.#{@table_name} WHERE #{base_where_sql}"
       pg_sql = pg_sql.gsub("'", "''")
-      query = "SELECT row_count FROM postgres_query('#{@config.duckdb_connection_string}', '#{pg_sql}')"
+      query = "SELECT row_count FROM postgres_query('pg_source', '#{pg_sql}')"
       @duckdb.query(query).first.first
     end
 
@@ -109,7 +110,7 @@ module DataDrain
       query = <<~SQL
         COPY (
           SELECT #{@select_sql}
-          FROM postgres_query('#{@config.duckdb_connection_string}', '#{pg_sql}')
+          FROM postgres_query('pg_source', '#{pg_sql}')
         ) TO '#{dest_path}'
         (
           FORMAT PARQUET,
