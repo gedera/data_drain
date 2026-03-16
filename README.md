@@ -50,6 +50,12 @@ DataDrain.configure do |config|
   # Rendimiento y Tuning de Postgres
   config.batch_size     = 5000 # Registros a borrar por transacción
   config.throttle_delay = 0.5  # Segundos de pausa entre borrados
+  
+  # Timeout de inactividad de transacciones en PostgreSQL (en milisegundos).
+  # Útil establecerlo en 0 para evitar que la conexión se cierre prematuramente 
+  # durante el borrado de grandes volúmenes de datos.
+  config.idle_in_transaction_session_timeout = 0
+  
   config.logger         = Rails.logger
 
   # Tuning de DuckDB
