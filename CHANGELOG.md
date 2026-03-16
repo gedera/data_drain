@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+## [0.1.4] - 2026-03-16
+
+- Corrección de error por comilla simple
+
 ## [0.1.3] - 2026-03-16
 
 - Corrección de la sintaxis para postres_query

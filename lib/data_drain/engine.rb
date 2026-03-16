@@ -90,6 +90,7 @@ module DataDrain
     # @return [Integer]
     def get_postgres_count
       pg_sql = "SELECT COUNT(*) AS row_count FROM public.#{@table_name} WHERE #{base_where_sql}"
+      pg_sql = pg_sql.gsub("'", "''")
       query = "SELECT row_count FROM postgres_query('#{@config.duckdb_connection_string}', '#{pg_sql}')"
       @duckdb.query(query).first.first
     end
@@ -103,6 +104,7 @@ module DataDrain
       dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@bucket}/#{@folder_name}/" : File.join(@bucket, @folder_name, "")
 
       pg_sql = "SELECT #{@select_sql} FROM public.#{@table_name} WHERE #{base_where_sql}"
+      pg_sql = pg_sql.gsub("'", "''")
 
       query = <<~SQL
         COPY (
