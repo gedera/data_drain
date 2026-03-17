@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+## [0.1.9] - 2026-03-17
+
+- Fix: Mejora en la precisión del rango de fechas en consultas SQL usando límites semi-abiertos (<) para evitar pérdida de registros por microsegundos.
+
 ## [0.1.8] - 2026-03-16
 
 - Fix: Se cambió la cadena de conexión de DuckDB a formato URI para propagar el timeout de sesión en el ATTACH.
