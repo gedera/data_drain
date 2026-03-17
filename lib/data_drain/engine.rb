@@ -22,7 +22,11 @@ module DataDrain
     # @option options [String] :where_clause (Opcional) Condición SQL extra.
     def initialize(options)
       @start_date     = options.fetch(:start_date).beginning_of_day
-      @end_date       = options.fetch(:end_date).end_of_day
+      
+      # Usamos el inicio del día siguiente como límite superior estricto (<)
+      # Esto evita problemas de precisión con los microsegundos al usar end_of_day
+      @end_date       = options.fetch(:end_date).to_date.next_day.beginning_of_day
+      
       @table_name     = options.fetch(:table_name)
       @folder_name    = options.fetch(:folder_name, @table_name)
       @select_sql     = options.fetch(:select_sql, "*")
@@ -72,7 +76,7 @@ module DataDrain
     # @api private
     # @return [String]
     def base_where_sql
-      sql = "created_at >= '#{@start_date.to_fs(:db)}' AND created_at <= '#{@end_date.to_fs(:db)}'"
+      sql = "created_at >= '#{@start_date.to_fs(:db)}' AND created_at < '#{@end_date.to_fs(:db)}'"
       sql += " AND #{@where_clause}" if @where_clause && !@where_clause.empty?
       sql
     end
