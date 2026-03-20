@@ -20,6 +20,7 @@ module DataDrain
     # @option options [Array<String, Symbol>] :partition_keys Columnas para particionar.
     # @option options [String] :primary_key (Opcional) Clave primaria para borrado. Por defecto 'id'.
     # @option options [String] :where_clause (Opcional) Condición SQL extra.
+    # @option options [Boolean] :skip_export (Opcional) Si es true, no realiza el export a Parquet, solo validación y purga.
     def initialize(options)
       @start_date     = options.fetch(:start_date).beginning_of_day
       
@@ -34,6 +35,7 @@ module DataDrain
       @primary_key    = options.fetch(:primary_key, "id")
       @where_clause   = options[:where_clause]
       @bucket         = options[:bucket]
+      @skip_export    = options.fetch(:skip_export, false)
 
       @config  = DataDrain.configuration
       @logger  = @config.logger
@@ -43,7 +45,7 @@ module DataDrain
       @duckdb  = database.connect
     end
 
-    # Ejecuta el flujo completo del motor: Setup, Conteo, Exportación, Verificación y Purga.
+    # Ejecuta el flujo completo del motor: Setup, Conteo, Exportación (opcional), Verificación y Purga.
     #
     # @return [Boolean] `true` si el proceso finalizó con éxito, `false` si falló la integridad.
     def call
@@ -58,8 +60,12 @@ module DataDrain
         return true
       end
 
-      @logger.info "[DataDrain Engine] 📦 Exportando #{@pg_count} registros a Parquet..."
-      export_to_parquet
+      if @skip_export
+        @logger.info "[DataDrain Engine] ⏭️ Modo 'Skip Export' activo. Saltando paso de exportación..."
+      else
+        @logger.info "[DataDrain Engine] 📦 Exportando #{@pg_count} registros a Parquet..."
+        export_to_parquet
+      end
 
       if verify_integrity
         purge_from_postgres

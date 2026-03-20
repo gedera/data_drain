@@ -8,6 +8,7 @@ require_relative "data_drain/storage"
 require_relative "data_drain/engine"
 require_relative "data_drain/record"
 require_relative "data_drain/file_ingestor"
+require_relative "data_drain/glue_runner"
 
 # Registramos el tipo JSON personalizado de ActiveModel
 require_relative "data_drain/types/json_type"

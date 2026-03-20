@@ -98,39 +98,118 @@ ingestor.call
 
 ### 2. Extracción y Purga de BD (Engine)
 
-Ideal para crear Ventanas Rodantes de retención (ej. mantener solo 6 meses de datos vivos en Postgres y archivar el resto).
+Ideal para crear Ventanas Rodantes de retención (ej. mantener solo 6 meses de datos vivos en Postgres y archivar el resto). 
+
+**Modo Purga con Exportación Externa (AWS Glue):** 
+Si tu arquitectura ya utiliza **AWS Glue** o **AWS EMR** para mover datos pesados, puedes configurar DataDrain para que actúe únicamente como **Garante de Integridad**. En este modo, el motor omitirá el paso de exportación, pero verificará matemáticamente que los datos existan en el Data Lake antes de proceder a eliminarlos de PostgreSQL.
 
 ```ruby
-# lib/tasks/archive.rake
-task versions: :environment do
-  target_date = 6.months.ago.beginning_of_month
-
-  select_sql = <<~SQL
-    id, item_type, item_id, event, whodunnit,
-    object::VARCHAR AS object,
-    object_changes::VARCHAR AS object_changes,
-    created_at,
-    EXTRACT(YEAR FROM created_at)::INT AS year,
-    EXTRACT(MONTH FROM created_at)::INT AS month,
-    isp_id
-  SQL
-
+# lib/tasks/archive_with_glue.rake
+task purge_only: :environment do
   engine = DataDrain::Engine.new(
     bucket:         'my-bucket-store',
-    start_date:     target_date.beginning_of_month,
-    end_date:       target_date.end_of_month,
+    start_date:     6.months.ago.beginning_of_month,
+    end_date:       6.months.ago.end_of_month,
     table_name:     'versions',
-    select_sql:     select_sql,
-    partition_keys: %w[year month isp_id],
-    where_clause:   "event = 'update'"
+    partition_keys: %w[year month],
+    skip_export:    true # ⚡️ No exporta nada, solo valida S3 y purga Postgres
   )
 
-  # Cuenta, exporta a Parquet, verifica integridad y purga Postgres.
   engine.call
 end
 ```
 
-### 3. Consultar el Data Lake (Record)
+### 3. Orquestación con AWS Glue (Big Data)
+
+Para tablas de gran volumen (**ej. > 500GB o 1TB**), se recomienda delegar el movimiento de datos a **AWS Glue** (basado en Apache Spark) para evitar saturar el servidor de Ruby. `DataDrain` actúa como el orquestador que dispara el Job, espera a que termine y luego realiza la validación y purga.
+
+```ruby
+# 1. Disparar el Job de Glue y esperar su finalización exitosa
+config = DataDrain.configuration
+bucket = "my-bucket"
+table  = "versions"
+
+DataDrain::GlueRunner.run_and_wait(
+  "my-glue-export-job",
+  {
+    "--start_date"    => start_date.to_fs(:db),
+    "--end_date"      => end_date.to_fs(:db),
+    "--s3_bucket"     => bucket,
+    "--s3_folder"     => table,
+    "--db_url"        => "jdbc:postgresql://#{config.db_host}:#{config.db_port}/#{config.db_name}",
+    "--db_user"       => config.db_user,
+    "--db_password"   => config.db_pass,
+    "--db_table"      => table,
+    "--partition_by"  => "year,month,isp_id" # <--- Columnas dinámicas
+  }
+)
+
+# 2. Una vez que Glue exportó el TB, DataDrain valida integridad y purga Postgres
+DataDrain::Engine.new(
+  bucket:         bucket,
+  folder_name:    table,
+  start_date:     start_date,
+  end_date:       end_date,
+  table_name:     table,
+  partition_keys: %w[year month isp_id],
+  skip_export:    true # <--- Modo Validación + Purga
+).call
+```
+
+#### Script de AWS Glue (PySpark) compatible con DataDrain
+
+Crea un Job en la consola de AWS Glue (Spark 4.0+) y utiliza este script como base. Está diseñado para extraer datos de PostgreSQL de forma dinámica:
+
+```python
+import sys
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+from pyspark.sql.functions import col, year, month
+
+# Parámetros recibidos desde DataDrain::GlueRunner
+args = getResolvedOptions(sys.argv, [
+    'JOB_NAME', 'start_date', 'end_date', 's3_bucket', 's3_folder',
+    'db_url', 'db_user', 'db_password', 'db_table', 'partition_by'
+])
+
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+# 1. Leer de PostgreSQL (vía JDBC dinámico)
+options = {
+    "url": args['db_url'],
+    "dbtable": args['db_table'],
+    "user": args['db_user'],
+    "password": args['db_password'],
+    "sampleQuery": f"SELECT * FROM {args['db_table']} WHERE created_at >= '{args['start_date']}' AND created_at < '{args['end_date']}'"
+}
+
+df = spark.read.format("jdbc").options(**options).load()
+
+# 2. Agregar columnas de partición temporales (Hive Partitioning)
+df_final = df.withColumn("year", year(col("created_at"))) \
+             .withColumn("month", month(col("created_at")))
+
+# 3. Escribir a S3 en Parquet con compresión ZSTD
+# Construimos el path dinámicamente: s3://bucket/folder/
+output_path = f"s3://{args['s3_bucket']}/{args['s3_folder']}/"
+partitions = args['partition_by'].split(",")
+
+df_final.write.mode("overwrite") \
+        .partitionBy(*partitions) \
+        .format("parquet") \
+        .option("compression", "zstd") \
+        .save(output_path)
+
+job.commit()
+```
+
+### 4. Consultar el Data Lake (Record)
 
 Para consultar los datos archivados sin salir de Ruby, crea un modelo que herede de `DataDrain::Record`.
 
