@@ -26,6 +26,7 @@ Gem::Specification.new do |spec|
 
   # 💡 Dependencias Core de la Gema
   spec.add_dependency "activemodel", ">= 6.0"
+  spec.add_dependency "aws-sdk-glue", "~> 1.0"
   spec.add_dependency "aws-sdk-s3", "~> 1.114"
   spec.add_dependency "duckdb", "~> 1.4"
   spec.add_dependency "pg", ">= 1.2"
