@@ -17,7 +17,7 @@ module DataDrain
       config = DataDrain.configuration
       client = Aws::Glue::Client.new(region: config.aws_region)
 
-      config.logger.info "[DataDrain GlueRunner] 🚀 Disparando Job: #{job_name}..."
+      config.logger.info "component=data_drain event=glue_runner.start job=#{job_name}"
       resp = client.start_job_run(job_name: job_name, arguments: arguments)
       run_id = resp.job_run_id
 
@@ -27,14 +27,14 @@ module DataDrain
 
         case status
         when "SUCCEEDED"
-          config.logger.info "[DataDrain GlueRunner] ✅ Job completado con éxito."
+          config.logger.info "component=data_drain event=glue_runner.complete job=#{job_name} run_id=#{run_id}"
           return true
         when "FAILED", "STOPPED", "TIMEOUT"
           error_msg = run_info.error_message || "Sin mensaje de error disponible."
-          config.logger.error "[DataDrain GlueRunner] ❌ ERROR: El Job terminó con estado #{status}: #{error_msg}"
+          config.logger.error "component=data_drain event=glue_runner.failed job=#{job_name} run_id=#{run_id} status=#{status} error=#{error_msg}"
           raise "Glue Job #{job_name} (Run ID: #{run_id}) falló con estado #{status}."
         else
-          config.logger.info "[DataDrain GlueRunner] ⏳ Estado: #{status}. Esperando #{polling_interval}s..."
+          config.logger.info "component=data_drain event=glue_runner.polling job=#{job_name} run_id=#{run_id} status=#{status} next_check_in=#{polling_interval}s"
           sleep polling_interval
         end
       end

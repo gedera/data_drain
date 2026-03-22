@@ -30,10 +30,10 @@ module DataDrain
     # Ejecuta el flujo de ingestión.
     # @return [Boolean] true si el proceso fue exitoso.
     def call
-      @logger.info "[DataDrain FileIngestor] 🚀 Iniciando ingestión de '#{@source_path}'..."
+      @logger.info "component=data_drain event=file_ingestor.start source_path=#{@source_path}"
 
       unless File.exist?(@source_path)
-        @logger.error "[DataDrain FileIngestor] ❌ El archivo origen no existe: #{@source_path}"
+        @logger.error "component=data_drain event=file_ingestor.file_not_found source_path=#{@source_path}"
         return false
       end
 
@@ -47,7 +47,7 @@ module DataDrain
 
       # 1. Conteo de seguridad
       source_count = @duckdb.query("SELECT COUNT(*) FROM #{reader_function}").first.first
-      @logger.info "[DataDrain FileIngestor] 📊 Encontrados #{source_count} registros para procesar."
+      @logger.info "component=data_drain event=file_ingestor.count source_path=#{@source_path} count=#{source_count}"
 
       if source_count.zero?
         cleanup_local_file
@@ -73,15 +73,15 @@ module DataDrain
         );
       SQL
 
-      @logger.info "[DataDrain FileIngestor] ☁️ Escribiendo en el Data Lake..."
+      @logger.info "component=data_drain event=file_ingestor.export_start dest_path=#{dest_path}"
       @duckdb.query(query)
 
-      @logger.info "[DataDrain FileIngestor] ✅ Archivo ingerido y comprimido exitosamente."
+      @logger.info "component=data_drain event=file_ingestor.complete source_path=#{@source_path}"
 
       cleanup_local_file
       true
     rescue DuckDB::Error => e
-      @logger.error "[DataDrain FileIngestor] ❌ Error de DuckDB durante la ingestión: #{e.message}"
+      @logger.error "component=data_drain event=file_ingestor.duckdb_error source_path=#{@source_path} error=#{e.message}"
       false
     ensure
       @duckdb&.close
@@ -107,7 +107,7 @@ module DataDrain
     def cleanup_local_file
       if @delete_after_upload && File.exist?(@source_path)
         File.delete(@source_path)
-        @logger.info "[DataDrain FileIngestor] 🗑️ Archivo temporal local eliminado."
+        @logger.info "component=data_drain event=file_ingestor.cleanup source_path=#{@source_path}"
       end
     end
   end

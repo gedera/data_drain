@@ -85,7 +85,7 @@ module DataDrain
     # @return [Integer] Cantidad de particiones físicas eliminadas.
     def self.destroy_all(**partitions)
       adapter = DataDrain::Storage.adapter
-      DataDrain.configuration.logger.info "[DataDrain] 🗑️ Ejecutando destroy_all en #{folder_name} con: #{partitions.inspect}"
+      DataDrain.configuration.logger.info "component=data_drain event=record.destroy_all folder=#{folder_name} partitions=#{partitions.inspect}"
 
       adapter.destroy_partitions(bucket, folder_name, partition_keys, partitions)
     end
@@ -118,7 +118,7 @@ module DataDrain
         begin
           result = connection.query(sql)
         rescue DuckDB::Error => e
-          DataDrain.configuration.logger.warn "[DataDrain] ⚠️ Ruta o archivo no encontrado: #{e.message}"
+          DataDrain.configuration.logger.warn "component=data_drain event=record.parquet_not_found error=#{e.message}"
           return []
         end
 

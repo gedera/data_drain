@@ -49,30 +49,30 @@ module DataDrain
     #
     # @return [Boolean] `true` si el proceso finalizó con éxito, `false` si falló la integridad.
     def call
-      @logger.info "[DataDrain Engine] 🚀 Preparando '#{@table_name}' (#{@start_date.to_date} a #{@end_date.to_date})..."
+      @logger.info "component=data_drain event=engine.start table=#{@table_name} start_date=#{@start_date.to_date} end_date=#{@end_date.to_date}"
 
       setup_duckdb
 
       @pg_count = get_postgres_count
 
       if @pg_count.zero?
-        @logger.info "[DataDrain Engine] ⏭️ No hay registros que cumplan las condiciones."
+        @logger.info "component=data_drain event=engine.skip_empty table=#{@table_name}"
         return true
       end
 
       if @skip_export
-        @logger.info "[DataDrain Engine] ⏭️ Modo 'Skip Export' activo. Saltando paso de exportación..."
+        @logger.info "component=data_drain event=engine.skip_export table=#{@table_name}"
       else
-        @logger.info "[DataDrain Engine] 📦 Exportando #{@pg_count} registros a Parquet..."
+        @logger.info "component=data_drain event=engine.export_start table=#{@table_name} count=#{@pg_count}"
         export_to_parquet
       end
 
       if verify_integrity
         purge_from_postgres
-        @logger.info "[DataDrain Engine] ✅ Proceso completado exitosamente para '#{@table_name}'."
+        @logger.info "component=data_drain event=engine.complete table=#{@table_name}"
         true
       else
-        @logger.error "[DataDrain Engine] ❌ ERROR de integridad en '#{@table_name}'. Abortando purga."
+        @logger.error "component=data_drain event=engine.integrity_error table=#{@table_name}"
         false
       end
     end
@@ -147,17 +147,17 @@ module DataDrain
         SQL
         parquet_result = @duckdb.query(query).first.first
       rescue DuckDB::Error => e
-        @logger.error "[DataDrain Engine] ❌ Error leyendo Parquet: #{e.message}"
+        @logger.error "component=data_drain event=engine.parquet_read_error table=#{@table_name} error=#{e.message}"
         return false
       end
 
-      @logger.info "[DataDrain Engine] 📊 Verificación -> Postgres: #{@pg_count} | Parquet: #{parquet_result}"
+      @logger.info "component=data_drain event=engine.integrity_check table=#{@table_name} pg_count=#{@pg_count} parquet_count=#{parquet_result}"
       @pg_count == parquet_result
     end
 
     # @api private
     def purge_from_postgres
-      @logger.info "[DataDrain Engine] 🗑️ Purgando en base de datos (Lotes de #{@config.batch_size})..."
+      @logger.info "component=data_drain event=engine.purge_start table=#{@table_name} batch_size=#{@config.batch_size}"
 
       conn = PG.connect(
         host:     @config.db_host,

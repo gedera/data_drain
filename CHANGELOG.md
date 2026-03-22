@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [0.1.14] - 2026-03-17
+
+- Feature: Implementación de **Logging Estructurado** en toda la gema (\`key=value\`) para mejor observabilidad en producción.
+- Optimization: Caching automático de adaptadores de almacenamiento para mejorar el rendimiento de consultas repetidas.
+- Testing: Mejora en la robustez de los tests de \`Engine\` desacoplándolos de cambios menores en el setup de DuckDB.
+
 ## [0.1.13] - 2026-03-17
 
 - Feature: Parametrización total en la orquestación con Glue. Se añadieron \`s3_bucket\`, \`s3_folder\` y \`partition_by\` como argumentos dinámicos, permitiendo que el mismo Job de Glue sirva para múltiples tablas y destinos.

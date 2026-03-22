@@ -32,11 +32,12 @@ RSpec.describe DataDrain::Engine do
   it "ejecuta el flujo ETL completo si la integridad es exitosa" do
     # 1. Setup
     expect(mock_duckdb).to receive(:query).with(/INSTALL postgres/).ordered
-    expect(mock_duckdb).to receive(:query).with(/SET max_memory/).ordered
-    expect(mock_duckdb).to receive(:query).with(/SET temp_directory/).ordered
+    allow(mock_duckdb).to receive(:query).with(/SET max_memory/)
+    allow(mock_duckdb).to receive(:query).with(/SET temp_directory/)
+    expect(mock_duckdb).to receive(:query).with(/ATTACH .* AS pg_source/).ordered
 
     # 2. Conteo en Postgres (Simulamos que hay 100 registros)
-    expect(mock_duckdb).to receive(:query).with(/SELECT COUNT\(\*\)\nFROM postgres_scan/).ordered.and_return([[100]])
+    expect(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).ordered.and_return([[100]])
 
     # 3. Exportación a Parquet
     expect(mock_duckdb).to receive(:query).with(/COPY \(/).ordered
@@ -54,10 +55,10 @@ RSpec.describe DataDrain::Engine do
 
   it "aborta la purga y retorna false si la integridad falla" do
     # Ignoramos los querys de setup
-    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory/)
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
 
     # Postgres dice que hay 100
-    allow(mock_duckdb).to receive(:query).with(/SELECT COUNT\(\*\)\nFROM postgres_scan/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
 
     # Exportación
     allow(mock_duckdb).to receive(:query).with(/COPY \(/)
