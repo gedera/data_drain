@@ -30,6 +30,7 @@ module DataDrain
     # Ejecuta el flujo de ingestión.
     # @return [Boolean] true si el proceso fue exitoso.
     def call
+      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @logger.info "component=data_drain event=file_ingestor.start source_path=#{@source_path}"
 
       unless File.exist?(@source_path)
@@ -51,6 +52,8 @@ module DataDrain
 
       if source_count.zero?
         cleanup_local_file
+        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+        @logger.info "component=data_drain event=file_ingestor.skip_empty source_path=#{@source_path} duration=#{duration.round(2)}s"
         return true
       end
 
@@ -76,12 +79,14 @@ module DataDrain
       @logger.info "component=data_drain event=file_ingestor.export_start dest_path=#{dest_path}"
       @duckdb.query(query)
 
-      @logger.info "component=data_drain event=file_ingestor.complete source_path=#{@source_path}"
+      duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+      @logger.info "component=data_drain event=file_ingestor.complete source_path=#{@source_path} duration=#{duration.round(2)}s"
 
       cleanup_local_file
       true
     rescue DuckDB::Error => e
-      @logger.error "component=data_drain event=file_ingestor.duckdb_error source_path=#{@source_path} error=#{e.message}"
+      duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+      @logger.error "component=data_drain event=file_ingestor.duckdb_error source_path=#{@source_path} error=#{e.message} duration=#{duration.round(2)}s"
       false
     ensure
       @duckdb&.close

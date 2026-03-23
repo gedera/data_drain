@@ -16,6 +16,7 @@ module DataDrain
     def self.run_and_wait(job_name, arguments = {}, polling_interval: 30)
       config = DataDrain.configuration
       client = Aws::Glue::Client.new(region: config.aws_region)
+      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
       config.logger.info "component=data_drain event=glue_runner.start job=#{job_name}"
       resp = client.start_job_run(job_name: job_name, arguments: arguments)
@@ -27,11 +28,13 @@ module DataDrain
 
         case status
         when "SUCCEEDED"
-          config.logger.info "component=data_drain event=glue_runner.complete job=#{job_name} run_id=#{run_id}"
+          duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+          config.logger.info "component=data_drain event=glue_runner.complete job=#{job_name} run_id=#{run_id} duration=#{duration.round(2)}s"
           return true
         when "FAILED", "STOPPED", "TIMEOUT"
           error_msg = run_info.error_message || "Sin mensaje de error disponible."
-          config.logger.error "component=data_drain event=glue_runner.failed job=#{job_name} run_id=#{run_id} status=#{status} error=#{error_msg}"
+          duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+          config.logger.error "component=data_drain event=glue_runner.failed job=#{job_name} run_id=#{run_id} status=#{status} error=#{error_msg} duration=#{duration.round(2)}s"
           raise "Glue Job #{job_name} (Run ID: #{run_id}) falló con estado #{status}."
         else
           config.logger.info "component=data_drain event=glue_runner.polling job=#{job_name} run_id=#{run_id} status=#{status} next_check_in=#{polling_interval}s"

@@ -27,7 +27,7 @@ module DataDrain
     #
     # @return [DuckDB::Connection] Conexión activa a DuckDB.
     def self.connection
-      Thread.current[:data_drain_duckdb_conn] ||= begin
+      Thread.current[:data_drain_duckdb] ||= begin
         db = DuckDB::Database.open(":memory:")
         conn = db.connect
 
@@ -36,8 +36,9 @@ module DataDrain
         conn.query("SET temp_directory='#{config.tmp_directory}'") if config.tmp_directory.present?
 
         DataDrain::Storage.adapter.setup_duckdb(conn)
-        conn
+        { db: db, conn: conn }
       end
+      Thread.current[:data_drain_duckdb][:conn]
     end
 
     # Consulta registros en el Data Lake filtrando por claves de partición.

@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+## [0.1.15] - 2026-03-23
+
+- Performance: Medición de duraciones con reloj monotónico (`Process.clock_gettime`) en eventos terminales de `Engine`, `FileIngestor` y `GlueRunner`.
+- Fix: `idle_in_transaction_session_timeout` ahora se aplica correctamente cuando el valor es `0` (desactiva el timeout). Antes `0.present?` evaluaba a `false` y se ignoraba.
+- Fix: Objeto `DuckDB::Database` en `Record` ahora se ancla en el thread-local junto a la conexión, previniendo garbage collection prematura.
+- Fix: `Storage.adapter` cachea la instancia en vez de crearla en cada llamada.
+- Documentation: Agregado `CLAUDE.md` con guía de arquitectura y estándares del proyecto.
+
 ## [0.1.14] - 2026-03-17
 
 - Feature: Implementación de **Logging Estructurado** en toda la gema (\`key=value\`) para mejor observabilidad en producción.

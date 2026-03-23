@@ -49,6 +49,7 @@ module DataDrain
     #
     # @return [Boolean] `true` si el proceso finalizó con éxito, `false` si falló la integridad.
     def call
+      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @logger.info "component=data_drain event=engine.start table=#{@table_name} start_date=#{@start_date.to_date} end_date=#{@end_date.to_date}"
 
       setup_duckdb
@@ -56,7 +57,8 @@ module DataDrain
       @pg_count = get_postgres_count
 
       if @pg_count.zero?
-        @logger.info "component=data_drain event=engine.skip_empty table=#{@table_name}"
+        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+        @logger.info "component=data_drain event=engine.skip_empty table=#{@table_name} duration=#{duration.round(2)}s"
         return true
       end
 
@@ -69,10 +71,12 @@ module DataDrain
 
       if verify_integrity
         purge_from_postgres
-        @logger.info "component=data_drain event=engine.complete table=#{@table_name}"
+        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+        @logger.info "component=data_drain event=engine.complete table=#{@table_name} duration=#{duration.round(2)}s"
         true
       else
-        @logger.error "component=data_drain event=engine.integrity_error table=#{@table_name}"
+        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+        @logger.error "component=data_drain event=engine.integrity_error table=#{@table_name} duration=#{duration.round(2)}s"
         false
       end
     end
@@ -167,7 +171,7 @@ module DataDrain
         dbname:   @config.db_name
       )
 
-      if @config.idle_in_transaction_session_timeout.present?
+      unless @config.idle_in_transaction_session_timeout.nil?
         conn.exec("SET idle_in_transaction_session_timeout = #{@config.idle_in_transaction_session_timeout};")
       end
 

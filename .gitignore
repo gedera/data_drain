@@ -9,3 +9,6 @@
 
 # rspec failure tracking
 .rspec_status
+
+# Claude Code local settings (machine-specific)
+.claude/
