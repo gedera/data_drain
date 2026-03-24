@@ -43,7 +43,7 @@ module DataDrain
           error_metadata = { job: job_name, run_id: run_id, status: status, duration_s: duration.round(2) }
           
           if run_info.error_message
-            error_metadata[:error_message] = run_info.error_message.gsub("\"", "'").truncate(200)
+            error_metadata[:error_message] = run_info.error_message.gsub("\"", "'")[0, 200]
           end
 
           safe_log(:error, "glue_runner.failed", error_metadata)
