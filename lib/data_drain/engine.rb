@@ -9,6 +9,7 @@ module DataDrain
   # Orquesta el flujo ETL desde PostgreSQL hacia un Data Lake analítico
   # delegando la interacción del almacenamiento al adaptador configurado.
   class Engine
+    include Observability
     # Inicializa una nueva instancia del motor de extracción.
     #
     # @param options [Hash] Diccionario de configuración para la extracción.
@@ -50,33 +51,57 @@ module DataDrain
     # @return [Boolean] `true` si el proceso finalizó con éxito, `false` si falló la integridad.
     def call
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      @logger.info "component=data_drain event=engine.start table=#{@table_name} start_date=#{@start_date.to_date} end_date=#{@end_date.to_date}"
+      safe_log(:info, "engine.start", { table: @table_name, start_date: @start_date.to_date, end_date: @end_date.to_date })
 
       setup_duckdb
 
+      # 1. Conteo inicial en Postgres
+      step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @pg_count = get_postgres_count
+      db_query_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
 
       if @pg_count.zero?
         duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        @logger.info "component=data_drain event=engine.skip_empty table=#{@table_name} duration=#{duration.round(2)}s"
+        safe_log(:info, "engine.skip_empty", { table: @table_name, duration_s: duration.round(2), db_query_duration_s: db_query_duration.round(2) })
         return true
       end
 
+      # 2. Exportación
+      export_duration = 0.0
       if @skip_export
-        @logger.info "component=data_drain event=engine.skip_export table=#{@table_name}"
+        safe_log(:info, "engine.skip_export", { table: @table_name })
       else
-        @logger.info "component=data_drain event=engine.export_start table=#{@table_name} count=#{@pg_count}"
+        safe_log(:info, "engine.export_start", { table: @table_name, count: @pg_count })
+        step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         export_to_parquet
+        export_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
       end
 
-      if verify_integrity
+      # 3. Verificación de Integridad
+      step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      integrity_ok = verify_integrity
+      integrity_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
+
+      if integrity_ok
+        # 4. Purga en Postgres
+        step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         purge_from_postgres
+        purge_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
+
         duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        @logger.info "component=data_drain event=engine.complete table=#{@table_name} duration=#{duration.round(2)}s"
+        safe_log(:info, "engine.complete", {
+          table: @table_name,
+          duration_s: duration.round(2),
+          db_query_duration_s: db_query_duration.round(2),
+          export_duration_s: export_duration.round(2),
+          integrity_duration_s: integrity_duration.round(2),
+          purge_duration_s: purge_duration.round(2),
+          count: @pg_count
+        })
         true
       else
         duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        @logger.error "component=data_drain event=engine.integrity_error table=#{@table_name} duration=#{duration.round(2)}s"
+        safe_log(:error, "engine.integrity_error", { table: @table_name, duration_s: duration.round(2), count: @pg_count })
         false
       end
     end
@@ -151,17 +176,17 @@ module DataDrain
         SQL
         parquet_result = @duckdb.query(query).first.first
       rescue DuckDB::Error => e
-        @logger.error "component=data_drain event=engine.parquet_read_error table=#{@table_name} error=#{e.message}"
+        safe_log(:error, "engine.parquet_read_error", { table: @table_name }.merge(exception_metadata(e)))
         return false
       end
 
-      @logger.info "component=data_drain event=engine.integrity_check table=#{@table_name} pg_count=#{@pg_count} parquet_count=#{parquet_result}"
+      safe_log(:info, "engine.integrity_check", { table: @table_name, pg_count: @pg_count, parquet_count: parquet_result })
       @pg_count == parquet_result
     end
 
     # @api private
     def purge_from_postgres
-      @logger.info "component=data_drain event=engine.purge_start table=#{@table_name} batch_size=#{@config.batch_size}"
+      safe_log(:info, "engine.purge_start", { table: @table_name, batch_size: @config.batch_size })
 
       conn = PG.connect(
         host:     @config.db_host,
@@ -175,6 +200,9 @@ module DataDrain
         conn.exec("SET idle_in_transaction_session_timeout = #{@config.idle_in_transaction_session_timeout};")
       end
 
+      batches_processed = 0
+      total_deleted = 0
+
       loop do
         sql = <<~SQL
           DELETE FROM #{@table_name}
@@ -186,7 +214,20 @@ module DataDrain
         SQL
 
         result = conn.exec(sql)
-        break if result.cmd_tuples.zero?
+        count = result.cmd_tuples
+        break if count.zero?
+
+        batches_processed += 1
+        total_deleted += count
+
+        # Heartbeat cada 100 lotes para monitorear procesos largos de 1TB
+        if (batches_processed % 100).zero?
+          safe_log(:info, "engine.purge_heartbeat", {
+            table: @table_name,
+            batches_processed_count: batches_processed,
+            rows_deleted_count: total_deleted
+          })
+        end
 
         sleep(@config.throttle_delay) if @config.throttle_delay.positive?
       end

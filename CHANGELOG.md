@@ -1,6 +1,25 @@
 ## [Unreleased]
 
-## [0.1.15] - 2026-03-23
+## [0.1.18] - 2026-03-23
+
+- Feature: Módulo `Observability` centraliza el logging estructurado en toda la gema.
+- Feature: Heartbeat de progreso para purgas masivas (`engine.purge_heartbeat`).
+- Telemetry: Separación de contexto de error (`error_class`, `error_message`) en todos los eventos de falla.
+- Resilience: Los fallos en el sistema de logs nunca interrumpen el flujo principal de datos.
+
+## [0.1.17] - 2026-03-17
+
+- Feature: Telemetría granular por fases (Ingeniería de Performance).
+- Telemetry: Inclusión de métricas específicas como \`db_query_duration_s\`, \`export_duration_s\`, \`integrity_duration_s\` y \`purge_duration_s\` en el evento \`engine.complete\`.
+- Telemetry: Inclusión de \`source_query_duration_s\` y \`export_duration_s\` en \`file_ingestor.complete\`.
+
+## [0.1.16] - 2026-03-17
+
+- Refactor: Cumplimiento con el estándar **Wispro-Observability-Spec (v1)**.
+- Telemetry: Renombrado de métricas de tiempo a \`duration_s\` y \`next_check_in_s\` eliminando sufijos de unidad en los valores.
+- Observability: Garantía de valores numéricos puros para contadores y tiempos, facilitando el procesamiento por \`exis_ray\`.
+
+## [0.1.15] - 2026-03-17
 
 - Performance: Medición de duraciones con reloj monotónico (`Process.clock_gettime`) en eventos terminales de `Engine`, `FileIngestor` y `GlueRunner`.
 - Fix: `idle_in_transaction_session_timeout` ahora se aplica correctamente cuando el valor es `0` (desactiva el timeout). Antes `0.present?` evaluaba a `false` y se ignoraba.

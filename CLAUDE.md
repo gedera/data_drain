@@ -25,16 +25,19 @@ Las exportaciones usan `OVERWRITE_OR_IGNORE 1` de DuckDB. Los procesos son segur
 ### `idle_in_transaction_session_timeout`
 El valor `0` **desactiva** el timeout (sin límite). Para purgas de gran volumen esto es mandatorio. Internamente, se debe validar con `!nil?` ya que `0.present?` es falso.
 
-## Logging
+## Logging (Wispro-Observability-Spec v1)
 
-Seguir los estándares globales definidos en `~/.claude/CLAUDE.md`. Reglas específicas de este proyecto:
+La telemetría debe ser estructurada (KV) para ser procesada por `exis_ray`.
 
-- Formato obligatorio: `component=data_drain event=<clase>.<suceso> [campos]`
-- El campo `source` lo inyecta automáticamente `exis_ray` vía `ExisRay::Tracer` — DataDrain no debe incluirlo ni recibirlo como parámetro
-- Nunca logs puramente descriptivos, con emojis ni con prefijos entre corchetes
-- DEBUG siempre en forma de bloque: `logger.debug { "k=#{v}" }`
-- Duraciones con reloj monotónico: `Process.clock_gettime(Process::CLOCK_MONOTONIC)`
-- Filtrar datos sensibles (`password`, `token`, `secret`, `api_key`, `auth`) → `[FILTERED]`
+- **Formato:** `component=data_drain event=<clase>.<suceso> [campos]`
+- **Unidades:** Prohibido incluir unidades en los valores (ej: NO usar "0.5s").
+- **Tiempos:** Usar el sufijo `_s` en la key y valor `Float`. Ej: `duration_s=0.57`.
+- **Contadores:** Usar la palabra `count` en la key y valor `Integer`. Ej: `pg_count=100`.
+- **Naming:** Todas las llaves deben ser `snake_case`.
+- **Automatización:** El campo `source` lo inyecta automáticamente `exis_ray` — no incluirlo manualmente.
+- **DEBUG:** Siempre en forma de bloque: `logger.debug { "k=#{v}" }`.
+- **Duraciones:** Usar siempre `Process.clock_gettime(Process::CLOCK_MONOTONIC)`.
+- **Sensibilidad:** Filtrar datos sensibles (`password`, `token`, `secret`) → `[FILTERED]`.
 
 ## Código Ruby
 

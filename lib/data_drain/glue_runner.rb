@@ -6,6 +6,9 @@ module DataDrain
   # Orquestador para AWS Glue. Permite disparar y monitorear Jobs en AWS
   # para delegar el movimiento masivo de datos (ej. tablas de 1TB).
   class GlueRunner
+    extend Observability
+    private_class_method :safe_log, :exception_metadata, :observability_name
+
     # Dispara un Job de Glue y espera a que termine exitosamente.
     #
     # @param job_name [String] Nombre del Job en la consola de AWS.
@@ -18,7 +21,11 @@ module DataDrain
       client = Aws::Glue::Client.new(region: config.aws_region)
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      config.logger.info "component=data_drain event=glue_runner.start job=#{job_name}"
+      # Usamos el logger de la configuración directamente para el primer log antes de instanciar safe_log si fuera necesario
+      # Pero como extendemos Observability, usamos safe_log directamente.
+      @logger = config.logger 
+
+      safe_log(:info, "glue_runner.start", { job: job_name })
       resp = client.start_job_run(job_name: job_name, arguments: arguments)
       run_id = resp.job_run_id
 
@@ -29,15 +36,20 @@ module DataDrain
         case status
         when "SUCCEEDED"
           duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-          config.logger.info "component=data_drain event=glue_runner.complete job=#{job_name} run_id=#{run_id} duration=#{duration.round(2)}s"
+          safe_log(:info, "glue_runner.complete", { job: job_name, run_id: run_id, duration_s: duration.round(2) })
           return true
         when "FAILED", "STOPPED", "TIMEOUT"
-          error_msg = run_info.error_message || "Sin mensaje de error disponible."
           duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-          config.logger.error "component=data_drain event=glue_runner.failed job=#{job_name} run_id=#{run_id} status=#{status} error=#{error_msg} duration=#{duration.round(2)}s"
+          error_metadata = { job: job_name, run_id: run_id, status: status, duration_s: duration.round(2) }
+          
+          if run_info.error_message
+            error_metadata[:error_message] = run_info.error_message.gsub("\"", "'").truncate(200)
+          end
+
+          safe_log(:error, "glue_runner.failed", error_metadata)
           raise "Glue Job #{job_name} (Run ID: #{run_id}) falló con estado #{status}."
         else
-          config.logger.info "component=data_drain event=glue_runner.polling job=#{job_name} run_id=#{run_id} status=#{status} next_check_in=#{polling_interval}s"
+          safe_log(:info, "glue_runner.polling", { job: job_name, run_id: run_id, status: status, next_check_in_s: polling_interval })
           sleep polling_interval
         end
       end

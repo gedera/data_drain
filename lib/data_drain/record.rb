@@ -17,6 +17,8 @@ module DataDrain
   class Record
     include ActiveModel::Model
     include ActiveModel::Attributes
+    extend Observability
+    private_class_method :safe_log, :exception_metadata, :observability_name
 
     class_attribute :bucket
     class_attribute :folder_name
@@ -86,7 +88,8 @@ module DataDrain
     # @return [Integer] Cantidad de particiones físicas eliminadas.
     def self.destroy_all(**partitions)
       adapter = DataDrain::Storage.adapter
-      DataDrain.configuration.logger.info "component=data_drain event=record.destroy_all folder=#{folder_name} partitions=#{partitions.inspect}"
+      @logger = DataDrain.configuration.logger
+      safe_log(:info, "record.destroy_all", { folder: folder_name, partitions: partitions.inspect })
 
       adapter.destroy_partitions(bucket, folder_name, partition_keys, partitions)
     end
@@ -116,10 +119,11 @@ module DataDrain
       # @param columns [Array<String>]
       # @return [Array<DataDrain::Record>]
       def execute_and_instantiate(sql, columns)
+        @logger = DataDrain.configuration.logger
         begin
           result = connection.query(sql)
         rescue DuckDB::Error => e
-          DataDrain.configuration.logger.warn "component=data_drain event=record.parquet_not_found error=#{e.message}"
+          safe_log(:warn, "record.parquet_not_found", exception_metadata(e))
           return []
         end
 
