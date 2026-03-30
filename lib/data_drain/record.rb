@@ -11,7 +11,7 @@ module DataDrain
   # @example
   #   class ArchivedVersion < DataDrain::Record
   #     self.folder_name = 'versions'
-  #     self.partition_keys = [:year, :month, :isp_id]
+  #     self.partition_keys = [:isp_id, :year, :month]
   #     attribute :event, :string
   #   end
   class Record
@@ -110,7 +110,7 @@ module DataDrain
       # @param partitions [Hash]
       # @return [String]
       def build_query_path(partitions)
-        partition_path = partitions.map { |k, v| "#{k}=#{v}" }.join("/")
+        partition_path = partition_keys.map { |k| "#{k}=#{partitions[k.to_sym] || partitions[k.to_s]}" }.join("/")
         DataDrain::Storage.adapter.build_path(bucket, folder_name, partition_path)
       end
 

@@ -19,6 +19,24 @@ created_at >= 'START' AND created_at < 'END_BOUNDARY'
 ```
 Donde `END_BOUNDARY` es el inicio del periodo siguiente (ej. `next_day.beginning_of_day`). Nunca usar `<= end_of_day` — los microsegundos en el límite pueden quedar fuera.
 
+### Partition Keys — Orden y Contrato
+
+El array `partition_keys` es **completamente dinámico** — cada tabla/modelo define el suyo. No existe un orden estándar en la librería.
+
+**Regla crítica:** el orden de `partition_keys` al **escribir** (Engine/FileIngestor) debe ser idéntico al declarado en el modelo **Record** que lee esos archivos. Un mismatch genera paths que no coinciden y DuckDB retorna vacío sin error.
+
+```ruby
+# Escritura
+Engine.new(partition_keys: %w[isp_id year month], ...)
+
+# Lectura — debe coincidir
+class ArchivedVersion < DataDrain::Record
+  self.partition_keys = [:isp_id, :year, :month]
+end
+```
+
+**Criterio de diseño del orden:** el primer key debe ser la dimensión de mayor cardinalidad o la que más se usa como filtro (ej. `isp_id` si las consultas son siempre por ISP). Esto determina la jerarquía de carpetas Hive y el rendimiento del prefix scan en S3.
+
 ### Idempotencia
 Las exportaciones usan `OVERWRITE_OR_IGNORE 1` de DuckDB. Los procesos son seguros de reintentar.
 

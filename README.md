@@ -84,7 +84,7 @@ ingestor = DataDrain::FileIngestor.new(
   bucket:              'my-bucket-store',
   source_path:         '/tmp/netflow_metrics_1600.csv',
   folder_name:         'netflow',
-  partition_keys:      %w[year month isp_id],
+  partition_keys:      %w[isp_id year month],
   select_sql:          "*, EXTRACT(YEAR FROM timestamp) AS year, EXTRACT(MONTH FROM timestamp) AS month",
   delete_after_upload: true
 )
@@ -148,7 +148,7 @@ DataDrain::GlueRunner.run_and_wait(
     "--db_user"      => config.db_user,
     "--db_password"  => config.db_pass,
     "--db_table"     => table,
-    "--partition_by" => "year,month,isp_id"
+    "--partition_by" => "isp_id,year,month"
   }
 )
 
@@ -159,7 +159,7 @@ DataDrain::Engine.new(
   start_date:     start_date,
   end_date:       end_date,
   table_name:     table,
-  partition_keys: %w[year month isp_id],
+  partition_keys: %w[isp_id year month],
   skip_export:    true
 ).call
 ```
@@ -197,6 +197,9 @@ options = {
 
 df = spark.read.format("jdbc").options(**options).load()
 
+# Agregar columnas derivadas necesarias para las particiones.
+# isp_id ya existe en la tabla fuente — solo agregar las que se calculan.
+# Personalizar esta sección según las partition_keys de cada tabla.
 df_final = df.withColumn("year", year(col("created_at"))) \
              .withColumn("month", month(col("created_at")))
 
@@ -221,7 +224,7 @@ Para consultar los datos archivados sin salir de Ruby, crea un modelo que herede
 class ArchivedVersion < DataDrain::Record
   self.bucket       = 'my-bucket-storage'
   self.folder_name  = 'versions'
-  self.partition_keys = [:year, :month, :isp_id]
+  self.partition_keys = [:isp_id, :year, :month]
 
   attribute :id,             :string
   attribute :item_type,      :string
@@ -238,11 +241,11 @@ Consultas optimizadas mediante Hive Partitioning:
 
 ```ruby
 # Búsqueda puntual aislando la partición exacta
-version = ArchivedVersion.find("un-uuid", year: 2026, month: 3, isp_id: 42)
+version = ArchivedVersion.find("un-uuid", isp_id: 42, year: 2026, month: 3)
 puts version.object_changes # => {"status" => ["active", "suspended"]}
 
 # Colecciones
-history = ArchivedVersion.where(limit: 10, year: 2026, month: 3, isp_id: 42)
+history = ArchivedVersion.where(limit: 10, isp_id: 42, year: 2026, month: 3)
 ```
 
 ### 5. Destrucción de Datos (Retención y Cumplimiento)

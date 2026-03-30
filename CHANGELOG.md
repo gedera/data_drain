@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+## [0.1.19] - 2026-03-30
+
+- Fix: `Record.build_query_path` ahora usa `partition_keys` como fuente de verdad del orden, ignorando el orden de los kwargs del caller. Antes, pasar `where(year: 2026, isp_id: 42)` en distinto orden generaba un path que no coincidía con la estructura Hive en disco.
+- Fix: `GlueRunner` reemplaza `.truncate(200)` de ActiveSupport por `[0, 200]` de Ruby puro, eliminando la dependencia implícita.
+- Convention: orden canónico de `partition_keys` es `[dimension_principal, year, month]` (ej. `isp_id` primero). Documentado en CLAUDE.md y actualizado en README, specs y ejemplos de PySpark.
+- Docs: README actualizado con ejemplos de producción correctos para Glue + Engine + Record.
+
 ## [0.1.18] - 2026-03-23
 
 - Feature: Módulo `Observability` centraliza el logging estructurado en toda la gema.
