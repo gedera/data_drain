@@ -25,6 +25,7 @@ module DataDrain
       @bucket = options[:bucket]
 
       @config = DataDrain.configuration
+      @config.validate!
       @logger = @config.logger
       @adapter = DataDrain::Storage.adapter
 

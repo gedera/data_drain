@@ -129,6 +129,10 @@ RSpec.describe DataDrain::Observability do
 
     describe "#observability_name" do
       it "extrae primer namespace en snake_case" do
+        DataDrain.configure do |c|
+          c.db_name = "test_db"
+          c.db_user = "test_user"
+        end
         engine_instance = DataDrain::Engine.new(
           bucket: "tmp",
           start_date: Time.now,
@@ -140,6 +144,7 @@ RSpec.describe DataDrain::Observability do
         expect(name).to eq("data_drain")
       ensure
         engine_instance.instance_variable_get(:@duckdb)&.close
+        DataDrain.reset_configuration!
       end
 
       it "retorna unknown para clases anonimas" do

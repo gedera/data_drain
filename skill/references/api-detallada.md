@@ -40,7 +40,20 @@ Atributos (`attr_accessor`):
 ### `#duckdb_connection_string`
 Retorna URI: `postgresql://user:pass@host:port/db?options=-c%20idle_in_transaction_session_timeout%3D<val>`
 
-**No hay validaciones automáticas.** Caller debe garantizar consistencia (ej. credenciales AWS si `storage_mode = :s3`).
+### `#validate!`
+Valida invariantes generales. Llamada automáticamente por `FileIngestor#initialize` y `GlueRunner.run_and_wait`.
+
+Raises `DataDrain::ConfigurationError` si:
+- `storage_mode` no es `:local` ni `:s3`
+- `storage_mode == :s3` y `aws_region` es nil o vacío
+
+### `#validate_for_engine!`
+Valida invariantes de Engine. Además de `#validate!`, verifica `db_host`, `db_user`, `db_name` no nil ni vacíos.
+
+Llamada automáticamente por `Engine#initialize`.
+
+**No valida `db_pass`** — puede ser nil con auth peer/trust (sockets locales) o IAM (RDS).
+**No valida `db_port`** — tiene default `5432`, nunca nil tras `Configuration#initialize`.
 
 ---
 

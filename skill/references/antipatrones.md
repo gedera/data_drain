@@ -243,3 +243,17 @@ DataDrain::GlueRunner.run_and_wait("job", args)  # Sin timeout, puede bloquearse
 ```ruby
 GlueRunner.run_and_wait("job", args, max_wait_seconds: 3600)  # 1h max
 ```
+
+---
+
+## 15. Llamar `Engine.new` con configuración incompleta
+
+**Incorrecto:**
+```ruby
+DataDrain::Engine.new(table_name: "versions", start_date: ..., end_date: ...)
+# donde DataDrain.configuration no tiene db_name seteado
+```
+
+**Razón:** Desde v0.2.2, `Engine#initialize` llama `config.validate_for_engine!` que verifica `db_host`, `db_user`, `db_name`. Si alguno falta, levanta `DataDrain::ConfigurationError`.
+
+**Alternativa:** Asegurar que `db_name`, `db_user` y `db_host` estén seteados en `DataDrain.configure` antes de llamar `Engine.new`. Si se usa auth peer/trust, `db_pass` puede ser `nil`.

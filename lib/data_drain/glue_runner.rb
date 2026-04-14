@@ -21,6 +21,7 @@ module DataDrain
     # @raise [RuntimeError] si el Job falla o se detiene.
     def self.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil)
       config = DataDrain.configuration
+      config.validate!
       client = Aws::Glue::Client.new(region: config.aws_region)
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
