@@ -3,7 +3,7 @@
 ## [0.2.1] - 2026-04-13
 
 ### Correcciones
-- CI: Descarga binario pre-compilado de DuckDB en vez de依赖 del sistema (`libduckdb-dev`). Soporta Ruby 3.4.4 en GitHub Actions.
+- CI: Descarga binario pre-compilado de DuckDB en vez de depender del sistema (`libduckdb-dev`). Soporta Ruby 3.4.4 en GitHub Actions.
 - CI: Opt-in a Node.js 24 (`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`).
 - CI: Ejecuta solo specs en CI (RuboCop vía local) para evitar 48 ofensas pre-existentes en specs.
 - PR feedback: Test `aws_region` con comillas, `minimum_coverage` 80%, antipatrón 12 actualizado.
