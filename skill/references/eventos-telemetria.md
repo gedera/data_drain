@@ -128,6 +128,11 @@ Catálogo completo de eventos KV emitidos por DataDrain. Formato Wispro-Observab
 **Campos:** `job`, `run_id`, `status`, `duration_s`, `error_message` (si Glue lo provee, truncado a 200 chars).
 **Consecuencia:** `raise RuntimeError`.
 
+### `glue_runner.timeout`
+**Nivel:** ERROR. Emite cuando `max_wait_seconds` excede antes de `SUCCEEDED`.
+**Campos:** `job`, `run_id`, `max_wait_seconds`.
+**Consecuencia:** `raise DataDrain::Error`.
+
 ---
 
 ## Ejemplos reales

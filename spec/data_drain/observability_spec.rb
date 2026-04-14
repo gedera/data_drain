@@ -61,6 +61,32 @@ RSpec.describe DataDrain::Observability do
         expect(test_logger.string).to include("auth=[FILTERED]")
       end
 
+      it "filtra db_password (regex)" do
+        instance.emit(:info, "test", db_password: "x")
+        expect(test_logger.string).to include("db_password=[FILTERED]")
+        expect(test_logger.string).not_to include("db_password=x")
+      end
+
+      it "filtra aws_secret_access_key (regex)" do
+        instance.emit(:info, "test", aws_secret_access_key: "akia123")
+        expect(test_logger.string).to include("aws_secret_access_key=[FILTERED]")
+      end
+
+      it "filtra bearer_token (regex)" do
+        instance.emit(:info, "test", bearer_token: "eyJhbGc...")
+        expect(test_logger.string).to include("bearer_token=[FILTERED]")
+      end
+
+      it "filtra private_key (regex)" do
+        instance.emit(:info, "test", private_key: "-----BEGIN RSA")
+        expect(test_logger.string).to include("private_key=[FILTERED]")
+      end
+
+      it "filtra credential" do
+        instance.emit(:info, "test", aws_credential: "x")
+        expect(test_logger.string).to include("aws_credential=[FILTERED]")
+      end
+
       it "no filtra campos no sensibles" do
         instance.emit(:info, "test", count: 42, table: "versions")
         expect(test_logger.string).to include("count=42")
@@ -103,6 +129,10 @@ RSpec.describe DataDrain::Observability do
 
     describe "#observability_name" do
       it "extrae primer namespace en snake_case" do
+        DataDrain.configure do |c|
+          c.db_name = "test_db"
+          c.db_user = "test_user"
+        end
         engine_instance = DataDrain::Engine.new(
           bucket: "tmp",
           start_date: Time.now,
@@ -114,6 +144,7 @@ RSpec.describe DataDrain::Observability do
         expect(name).to eq("data_drain")
       ensure
         engine_instance.instance_variable_get(:@duckdb)&.close
+        DataDrain.reset_configuration!
       end
 
       it "retorna unknown para clases anonimas" do

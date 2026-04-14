@@ -42,6 +42,7 @@ module DataDrain
       @skip_export = options.fetch(:skip_export, false)
 
       @config = DataDrain.configuration
+      @config.validate_for_engine!
       @logger = @config.logger
       @adapter = DataDrain::Storage.adapter
 

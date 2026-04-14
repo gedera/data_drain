@@ -15,6 +15,8 @@ RSpec.describe DataDrain::Record do
         UNION ALL SELECT 'uuid-3', 300, '2025-12-01'::TIMESTAMP, 2025, 12
       ) TO '#{path}' (FORMAT PARQUET, PARTITION_BY (year, month), OVERWRITE_OR_IGNORE 1);
     SQL
+    conn.close
+    db.close
   end
 
   after(:all) do
@@ -174,6 +176,18 @@ RSpec.describe DataDrain::Record do
     it "soporta symbol keys" do
       path = record_class.send(:build_query_path, { year: :integer, month: :integer })
       expect(path).to include("year=integer")
+    end
+
+    it "acepta string keys en el hash de particiones" do
+      path = record_class.send(:build_query_path, { "year" => 2026, "month" => 3 })
+      expect(path).to include("year=2026")
+      expect(path).to include("month=3")
+    end
+
+    it "combina string keys y symbol keys en el mismo hash" do
+      path = record_class.send(:build_query_path, { "year" => 2026, month: 3 })
+      expect(path).to include("year=2026")
+      expect(path).to include("month=3")
     end
   end
 end

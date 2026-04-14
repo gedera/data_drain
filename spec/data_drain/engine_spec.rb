@@ -18,6 +18,10 @@ RSpec.describe DataDrain::Engine do
   let(:mock_pg_result) { instance_double(PG::Result) }
 
   before do
+    DataDrain.configure do |c|
+      c.db_name = "test_db"
+      c.db_user = "test_user"
+    end
     allow_any_instance_of(DuckDB::Database).to receive(:connect).and_return(mock_duckdb)
     allow(PG).to receive(:connect).and_return(mock_pg_conn)
     allow(mock_pg_conn).to receive(:close)

@@ -27,5 +27,49 @@ module DataDrain
     def duckdb_connection_string
       "postgresql://#{@db_user}:#{@db_pass}@#{@db_host}:#{@db_port}/#{@db_name}?options=-c%20idle_in_transaction_session_timeout%3D#{@idle_in_transaction_session_timeout}"
     end
+
+    # Valida invariantes generales (storage_mode + AWS si aplica).
+    # Llamado por FileIngestor#initialize y GlueRunner.run_and_wait.
+    #
+    # @raise [DataDrain::ConfigurationError]
+    def validate!
+      validate_storage_mode!
+      validate_aws_config! if storage_mode.to_sym == :s3
+    end
+
+    # Valida además las credenciales PostgreSQL.
+    # Llamado por Engine#initialize.
+    #
+    # @raise [DataDrain::ConfigurationError]
+    def validate_for_engine!
+      validate!
+      validate_db_config!
+    end
+
+    private
+
+    def validate_storage_mode!
+      return if %i[local s3].include?(storage_mode.to_sym)
+
+      raise DataDrain::ConfigurationError,
+            "storage_mode debe ser :local o :s3, recibido #{storage_mode.inspect}"
+    end
+
+    def validate_aws_config!
+      return unless aws_region.nil? || aws_region.to_s.empty?
+
+      raise DataDrain::ConfigurationError,
+            "aws_region es obligatorio con storage_mode = :s3"
+    end
+
+    def validate_db_config!
+      %i[db_host db_user db_name].each do |attr|
+        val = public_send(attr)
+        next unless val.nil? || val.to_s.empty?
+
+        raise DataDrain::ConfigurationError,
+              "config.#{attr} es obligatorio para Engine (storage_mode=#{storage_mode})"
+      end
+    end
   end
 end

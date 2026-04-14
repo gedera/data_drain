@@ -40,7 +40,20 @@ Atributos (`attr_accessor`):
 ### `#duckdb_connection_string`
 Retorna URI: `postgresql://user:pass@host:port/db?options=-c%20idle_in_transaction_session_timeout%3D<val>`
 
-**No hay validaciones automáticas.** Caller debe garantizar consistencia (ej. credenciales AWS si `storage_mode = :s3`).
+### `#validate!`
+Valida invariantes generales. Llamada automáticamente por `FileIngestor#initialize` y `GlueRunner.run_and_wait`.
+
+Raises `DataDrain::ConfigurationError` si:
+- `storage_mode` no es `:local` ni `:s3`
+- `storage_mode == :s3` y `aws_region` es nil o vacío
+
+### `#validate_for_engine!`
+Valida invariantes de Engine. Además de `#validate!`, verifica `db_host`, `db_user`, `db_name` no nil ni vacíos.
+
+Llamada automáticamente por `Engine#initialize`.
+
+**No valida `db_pass`** — puede ser nil con auth peer/trust (sockets locales) o IAM (RDS).
+**No valida `db_port`** — tiene default `5432`, nunca nil tras `Configuration#initialize`.
 
 ---
 
@@ -164,23 +177,23 @@ Formato: `#<Class attr1: val1, attr2: val2, ...>`.
 
 ## `DataDrain::GlueRunner`
 
-### `.run_and_wait(job_name, arguments = {}, polling_interval: 30) → true`
+### `.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil) → true`
 
 | Parámetro | Tipo | Descripción |
 |-----------|------|-------------|
 | `job_name` | String | Nombre del Job en consola AWS |
 | `arguments` | Hash | Args con prefijo `--` (ej. `"--start_date" => "..."`) |
 | `polling_interval` | Integer | Segundos entre chequeos. Default `30` |
+| `max_wait_seconds` | Integer, nil | Timeout máximo. nil = sin límite. Default `nil` |
 
 Flujo:
 1. `Aws::Glue::Client.new(region: config.aws_region)`
 2. `start_job_run` → captura `run_id`
 3. Loop: `get_job_run`, evalúa `job_run_state`:
+   - Si `max_wait_seconds` excede → log `glue_runner.timeout`, `raise DataDrain::Error`
    - `SUCCEEDED` → log `glue_runner.complete`, retorna `true`
    - `FAILED|STOPPED|TIMEOUT` → log `glue_runner.failed` (incluye `error_message` truncado a 200 chars), `raise RuntimeError`
    - Otro → log `glue_runner.polling`, `sleep polling_interval`
-
-No tiene timeout máximo. Si Glue queda colgado en `RUNNING`, esto bloquea indefinidamente.
 
 ---
 
@@ -220,7 +233,7 @@ Diseñado para `include` (instance methods, requiere `@logger`) o `extend` (clas
 ### `#safe_log(level, event, metadata = {})` (privado)
 - Si `@logger` es nil, no-op.
 - Construye `fields = { component: observability_name, event: event }.merge(metadata)`.
-- Filtra valores cuyas keys sean `:password|:token|:secret|:api_key|:auth` → `[FILTERED]`.
+- Filtra valores cuyas keys matcheen `SENSITIVE_KEY_PATTERN = /password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i` → `[FILTERED]`. Aplica a claves exactas (`password`) y variantes (`db_password`, `aws_secret_access_key`, `bearer_token`, etc.).
 - Emite `@logger.send(level) { "k1=v1 k2=v2 ..." }`.
 - `rescue StandardError` silencioso (resilience).
 

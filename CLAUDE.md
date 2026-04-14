@@ -59,7 +59,7 @@ La telemetría debe ser estructurada (KV) para ser procesada por `exis_ray`.
 - **Automatización:** El campo `source` lo inyecta automáticamente `exis_ray` — no incluirlo manualmente.
 - **DEBUG:** Siempre en forma de bloque: `logger.debug { "k=#{v}" }`.
 - **Duraciones:** Usar siempre `Process.clock_gettime(Process::CLOCK_MONOTONIC)`.
-- **Sensibilidad:** Filtrar datos sensibles (`password`, `token`, `secret`) → `[FILTERED]`.
+- **Sensibilidad:** `Observability#safe_log` filtra claves con regex `/password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i` → `[FILTERED]`.
 
 ## Código Ruby
 
@@ -79,3 +79,5 @@ bin/console             # REPL de desarrollo
 
 - `limit_ram` y `tmp_directory` en la configuración evitan OOM en contenedores
 - DuckDB usa spill-to-disk automáticamente cuando `tmp_directory` está seteado
+- Ver `skill/references/postgres-tuning.md` para guía de tuning por tamaño de tabla:
+  índices, VACUUM post-purga, y particionamiento declarativo para tablas >100GB
