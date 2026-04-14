@@ -1,8 +1,10 @@
 AllCops:
   TargetRubyVersion: 3.2
   Exclude:
-    - spec/**/*
+    - spec/
 
-Metrics/BlockLength:
-  Exclude:
-    - spec/**/*
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
