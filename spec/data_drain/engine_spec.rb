@@ -2,31 +2,133 @@
 
 RSpec.describe DataDrain::Engine do
   let(:bucket) { "tmp/test_lake" }
-  let(:options) do
+  let(:base_options) do
     {
       bucket: bucket,
       start_date: Time.new(2026, 3, 1),
       end_date: Time.new(2026, 3, 31),
-      table_name: "versions",
-      partition_keys: %w[year month],
-      primary_key: "id"
+      partition_keys: %w[year month]
     }
   end
 
-  let(:engine) { described_class.new(options) }
+  let(:engine) { described_class.new(base_options.merge(table_name: "versions")) }
 
-  # Mocks para la base de datos
   let(:mock_duckdb) { instance_double(DuckDB::Connection) }
   let(:mock_pg_conn) { instance_double(PG::Connection) }
   let(:mock_pg_result) { instance_double(PG::Result) }
 
   before do
-    # Interceptamos la creación de la conexión de DuckDB
     allow_any_instance_of(DuckDB::Database).to receive(:connect).and_return(mock_duckdb)
-
-    # Interceptamos la conexión a Postgres
     allow(PG).to receive(:connect).and_return(mock_pg_conn)
     allow(mock_pg_conn).to receive(:close)
+  end
+
+  describe "validación de identificadores" do
+    it "rechaza table_name con punto y coma (SQL injection attempt)" do
+      expect do
+        described_class.new(base_options.merge(table_name: "x; DROP TABLE y"))
+      end.to raise_error(DataDrain::ConfigurationError, /table_name/)
+    end
+
+    it "rechaza primary_key con espacios" do
+      expect do
+        described_class.new(base_options.merge(table_name: "versions", primary_key: "id desc"))
+      end.to raise_error(DataDrain::ConfigurationError, /primary_key/)
+    end
+
+    it "rechaza table_name con punto (schema.table)" do
+      expect do
+        described_class.new(base_options.merge(table_name: "public.versions"))
+      end.to raise_error(DataDrain::ConfigurationError, /table_name/)
+    end
+
+    it "acepta identificador válido con guión bajo y números" do
+      expect do
+        described_class.new(base_options.merge(table_name: "my_table_2", primary_key: "id_2"))
+      end.not_to raise_error
+    end
+
+    it "acepta identificadores con mayúsculas" do
+      expect do
+        described_class.new(base_options.merge(table_name: "Versions", primary_key: "Id"))
+      end.not_to raise_error
+    end
+
+    it "acepta identificador que empieza con guión bajo" do
+      expect do
+        described_class.new(base_options.merge(table_name: "_internal_table"))
+      end.not_to raise_error
+    end
+  end
+
+  it "skip export y purge cuando pg_count es 0" do
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres/)
+    allow(mock_duckdb).to receive(:query).with(/SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[0]])
+
+    expect(engine.call).to be true
+  end
+
+  it "skip_export omite export_to_parquet pero ejecuta verify_integrity" do
+    engine = described_class.new(base_options.merge(table_name: "versions", skip_export: true))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+    allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0)
+    expect(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).twice.and_return(mock_pg_result)
+
+    expect(engine.call).to be true
+  end
+
+  it "setea idle_in_transaction_session_timeout = 0" do
+    engine = described_class.new(base_options.merge(table_name: "versions"))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    expect(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout = 0;/)
+    allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0)
+    expect(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).twice.and_return(mock_pg_result)
+
+    engine.call
+  end
+
+  it "no setea idle_in_transaction_session_timeout cuando es nil" do
+    DataDrain.configure { |c| c.idle_in_transaction_session_timeout = nil }
+    engine = described_class.new(base_options.merge(table_name: "versions"))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    expect(mock_pg_conn).not_to receive(:exec).with(/idle_in_transaction_session_timeout/)
+    allow(mock_pg_result).to receive(:cmd_tuples).and_return(0)
+    allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+    engine.call
+  ensure
+    DataDrain.reset_configuration!
+  end
+
+  it "loop de purge termina cuando cmd_tuples devuelve 0" do
+    engine = described_class.new(base_options.merge(table_name: "versions"))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+    allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+    values = [1, 1, 0]
+    call_count = 0
+    allow(mock_pg_result).to receive(:cmd_tuples) do
+      call_count += 1
+      values[call_count - 1]
+    end
+
+    engine.call
+
+    expect(call_count).to eq(3)
   end
 
   it "ejecuta el flujo ETL completo si la integridad es exitosa" do

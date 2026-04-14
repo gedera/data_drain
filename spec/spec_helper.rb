@@ -1,7 +1,15 @@
 # frozen_string_literal: true
 
+require "simplecov"
+SimpleCov.start do
+  add_filter "/spec/"
+  minimum_coverage 80
+end
+
 require "data_drain"
-require "fileutils" # Necesario para limpiar la carpeta tmp
+require "fileutils"
+
+Dir[File.expand_path("support/**/*.rb", __dir__)].sort.each { |f| require f }
 
 RSpec.configure do |config|
   config.example_status_persistence_file_path = ".rspec_status"

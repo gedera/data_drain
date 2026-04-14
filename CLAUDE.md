@@ -40,6 +40,10 @@ end
 ### Idempotencia
 Las exportaciones usan `OVERWRITE_OR_IGNORE 1` de DuckDB. Los procesos son seguros de reintentar.
 
+### Validación de identificadores SQL
+
+`Engine#initialize` y `FileIngestor#initialize` validan `table_name`, `primary_key` y `folder_name` contra la regex `\A[a-zA-Z_][a-zA-Z0-9_]*\z`. Valores con caracteres especiales (`.`, `;`, espacios, comillas) levantan `DataDrain::ConfigurationError`. `select_sql` y `where_clause` siguen siendo trusted.
+
 ### `idle_in_transaction_session_timeout`
 El valor `0` **desactiva** el timeout (sin límite). Para purgas de gran volumen esto es mandatorio. Internamente, se debe validar con `!nil?` ya que `0.present?` es falso.
 

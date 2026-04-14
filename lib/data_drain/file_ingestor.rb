@@ -6,6 +6,8 @@ module DataDrain
   # aplicando compresión ZSTD y particionamiento Hive.
   class FileIngestor
     include Observability
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity,
+    #   Metrics/MethodLength
 
     # @param options [Hash] Opciones de ingestión.
     # @option options [String] :source_path Ruta absoluta al archivo local.
@@ -14,19 +16,20 @@ module DataDrain
     # @option options [String] :select_sql (Opcional) Sentencia SELECT para transformar datos al vuelo.
     # @option options [Boolean] :delete_after_upload (Opcional) Borra el archivo local al terminar. Por defecto true.
     def initialize(options)
-      @source_path         = options.fetch(:source_path)
-      @folder_name         = options.fetch(:folder_name)
-      @partition_keys      = options.fetch(:partition_keys, [])
-      @select_sql          = options.fetch(:select_sql, "*")
+      @source_path = options.fetch(:source_path)
+      @folder_name = options.fetch(:folder_name)
+      Validations.validate_identifier!(:folder_name, @folder_name)
+      @partition_keys = options.fetch(:partition_keys, [])
+      @select_sql = options.fetch(:select_sql, "*")
       @delete_after_upload = options.fetch(:delete_after_upload, true)
-      @bucket              = options[:bucket]
+      @bucket = options[:bucket]
 
-      @config  = DataDrain.configuration
-      @logger  = @config.logger
+      @config = DataDrain.configuration
+      @logger = @config.logger
       @adapter = DataDrain::Storage.adapter
 
       database = DuckDB::Database.open(":memory:")
-      @duckdb  = database.connect
+      @duckdb = database.connect
     end
 
     # Ejecuta el flujo de ingestión.
@@ -52,7 +55,11 @@ module DataDrain
       step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       source_count = @duckdb.query("SELECT COUNT(*) FROM #{reader_function}").first.first
       source_query_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
-      safe_log(:info, "file_ingestor.count", { source_path: @source_path, count: source_count, source_query_duration_s: source_query_duration.round(2) })
+      safe_log(:info, "file_ingestor.count", {
+                 source_path: @source_path,
+                 count: source_count,
+                 source_query_duration_s: source_query_duration.round(2)
+               })
 
       if source_count.zero?
         cleanup_local_file
@@ -63,9 +70,14 @@ module DataDrain
 
       # 2. Exportación / Subida
       @adapter.prepare_export_path(@bucket, @folder_name)
-      dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@bucket}/#{@folder_name}/" : File.join(@bucket, @folder_name, "")
+      dest_path = if @config.storage_mode.to_sym == :s3
+                    "s3://#{@bucket}/#{@folder_name}/"
+                  else
+                    File.join(@bucket,
+                              @folder_name, "")
+                  end
 
-      partition_clause = @partition_keys.any? ? "PARTITION_BY (#{@partition_keys.join(', ')})," : ""
+      partition_clause = @partition_keys.any? ? "PARTITION_BY (#{@partition_keys.join(", ")})," : ""
 
       query = <<~SQL
         COPY (
@@ -87,18 +99,19 @@ module DataDrain
 
       duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
       safe_log(:info, "file_ingestor.complete", {
-        source_path: @source_path,
-        duration_s: duration.round(2),
-        source_query_duration_s: source_query_duration.round(2),
-        export_duration_s: export_duration.round(2),
-        count: source_count
-      })
+                 source_path: @source_path,
+                 duration_s: duration.round(2),
+                 source_query_duration_s: source_query_duration.round(2),
+                 export_duration_s: export_duration.round(2),
+                 count: source_count
+               })
 
       cleanup_local_file
       true
     rescue DuckDB::Error => e
       duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-      safe_log(:error, "file_ingestor.duckdb_error", { source_path: @source_path }.merge(exception_metadata(e)).merge(duration_s: duration.round(2)))
+      safe_log(:error, "file_ingestor.duckdb_error",
+               { source_path: @source_path }.merge(exception_metadata(e)).merge(duration_s: duration.round(2)))
       false
     ensure
       @duckdb&.close
@@ -109,11 +122,11 @@ module DataDrain
     # @api private
     def determine_reader
       case File.extname(@source_path).downcase
-      when '.csv'
+      when ".csv"
         "read_csv_auto('#{@source_path}')"
-      when '.json'
+      when ".json"
         "read_json_auto('#{@source_path}')"
-      when '.parquet'
+      when ".parquet"
         "read_parquet('#{@source_path}')"
       else
         raise DataDrain::Error, "Formato de archivo no soportado para ingestión: #{@source_path}"
@@ -122,10 +135,12 @@ module DataDrain
 
     # @api private
     def cleanup_local_file
-      if @delete_after_upload && File.exist?(@source_path)
-        File.delete(@source_path)
-        safe_log(:info, "file_ingestor.cleanup", { source_path: @source_path })
-      end
+      return unless @delete_after_upload && File.exist?(@source_path)
+
+      File.delete(@source_path)
+      safe_log(:info, "file_ingestor.cleanup", { source_path: @source_path })
     end
   end
+  # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity,
+  #   Metrics/MethodLength
 end
