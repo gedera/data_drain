@@ -5,20 +5,57 @@ module DataDrain
     # Implementación del adaptador de almacenamiento para Amazon S3.
     class S3 < Base
       # Carga la extensión httpfs en DuckDB e inyecta las credenciales de AWS.
+      # Si aws_access_key_id y aws_secret_access_key están seteados, usa
+      # credenciales explícitas. Si no, usa credential_chain (IAM role, env vars,
+      # ~/.aws/credentials).
       # @param connection [DuckDB::Connection]
+      # @raise [DataDrain::ConfigurationError] si aws_region no está configurado
       def setup_duckdb(connection)
         connection.query("INSTALL httpfs; LOAD httpfs;")
-        connection.query("SET s3_region='#{@config.aws_region}';")
-        connection.query("SET s3_access_key_id='#{@config.aws_access_key_id}';")
-        connection.query("SET s3_secret_access_key='#{@config.aws_secret_access_key}';")
+        create_s3_secret(connection)
       end
+
+      private
+
+      # @param connection [DuckDB::Connection]
+      # @raise [DataDrain::ConfigurationError]
+      def create_s3_secret(connection)
+        region = @config.aws_region
+        raise DataDrain::ConfigurationError, "aws_region es obligatorio para storage_mode=:s3" if region.nil?
+
+        if @config.aws_access_key_id && @config.aws_secret_access_key
+          connection.query(<<~SQL)
+            CREATE OR REPLACE SECRET data_drain_s3 (
+              TYPE S3,
+              KEY_ID '#{escape_sql(@config.aws_access_key_id)}',
+              SECRET '#{escape_sql(@config.aws_secret_access_key)}',
+              REGION '#{escape_sql(region)}'
+            );
+          SQL
+        else
+          connection.query(<<~SQL)
+            CREATE OR REPLACE SECRET data_drain_s3 (
+              TYPE S3,
+              PROVIDER credential_chain,
+              REGION '#{escape_sql(region)}'
+            );
+          SQL
+        end
+      end
+
+      # @param value [String]
+      # @return [String]
+      def escape_sql(value)
+        value.to_s.gsub("'", "''")
+      end
+
+      public
 
       # @param bucket [String]
       # @param folder_name [String]
       # @param partition_path [String, nil]
       # @return [String]
       def build_path(bucket, folder_name, partition_path)
-        # En S3, el base_path actúa como el nombre del bucket
         base = File.join(bucket, folder_name)
         base = File.join(base, partition_path) if partition_path && !partition_path.empty?
         "s3://#{base}/**/*.parquet"
@@ -40,7 +77,7 @@ module DataDrain
           val = partitions[key]
           val.nil? || val.to_s.empty? ? "#{key}=[^/]+" : "#{key}=#{val}"
         end
-        pattern_regex = Regexp.new("^#{folder_name}/#{regex_parts.join('/')}")
+        pattern_regex = Regexp.new("^#{folder_name}/#{regex_parts.join("/")}")
 
         objects_to_delete = []
         prefix = "#{folder_name}/"
@@ -58,7 +95,10 @@ module DataDrain
 
       private
 
-      # @api private
+      # @param client [Aws::S3::Client]
+      # @param bucket [String]
+      # @param objects_to_delete [Array<Hash>]
+      # @return [Integer]
       def delete_in_batches(client, bucket, objects_to_delete)
         return 0 if objects_to_delete.empty?
 
