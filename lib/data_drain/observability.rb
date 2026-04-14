@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module DataDrain
-  # Módulo interno para garantizar que la telemetría cumpla con los 
+  # Módulo interno para garantizar que la telemetría cumpla con los
   # Global-Observability-Standards: resiliencia, KV-structured y precisión.
   #
   # Este módulo es genérico y puede ser utilizado en otras gemas.

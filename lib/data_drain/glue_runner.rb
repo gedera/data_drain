@@ -23,7 +23,7 @@ module DataDrain
 
       # Usamos el logger de la configuración directamente para el primer log antes de instanciar safe_log si fuera necesario
       # Pero como extendemos Observability, usamos safe_log directamente.
-      @logger = config.logger 
+      @logger = config.logger
 
       safe_log(:info, "glue_runner.start", { job: job_name })
       resp = client.start_job_run(job_name: job_name, arguments: arguments)
@@ -41,15 +41,14 @@ module DataDrain
         when "FAILED", "STOPPED", "TIMEOUT"
           duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
           error_metadata = { job: job_name, run_id: run_id, status: status, duration_s: duration.round(2) }
-          
-          if run_info.error_message
-            error_metadata[:error_message] = run_info.error_message.gsub("\"", "'")[0, 200]
-          end
+
+          error_metadata[:error_message] = run_info.error_message.gsub("\"", "'")[0, 200] if run_info.error_message
 
           safe_log(:error, "glue_runner.failed", error_metadata)
           raise "Glue Job #{job_name} (Run ID: #{run_id}) falló con estado #{status}."
         else
-          safe_log(:info, "glue_runner.polling", { job: job_name, run_id: run_id, status: status, next_check_in_s: polling_interval })
+          safe_log(:info, "glue_runner.polling",
+                   { job: job_name, run_id: run_id, status: status, next_check_in_s: polling_interval })
           sleep polling_interval
         end
       end
