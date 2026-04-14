@@ -32,7 +32,7 @@ DataDrain v0.1.19 es una gema bien arquitecturada (Storage Adapter, Observabilit
 - **Memory leak potencial:** conexión DuckDB thread-local sin cleanup.
 - **Documentación de tuning ausente:** sin guía para purgas masivas, índices, particionamiento.
 
-Este plan agrupa 17 items en 4 releases incrementales (v0.2.0 → v0.3.1) priorizados por impacto.
+Este plan agrupa 24 items (17 originales + 7 surgidos post v0.2.1) en 5+ releases incrementales (v0.2.0 → v0.3.1) priorizados por impacto.
 
 ---
 
@@ -1088,6 +1088,261 @@ Solo donde sea limpio. No forzar.
 
 - [ ] Tests existentes pasan.
 - [ ] No cambia comportamiento.
+
+---
+
+### Items nuevos — surgidos post v0.2.1 (no en plan original)
+
+Agregados el 2026-04-14 tras review de v0.2.1 y análisis del workaround de CI.
+
+---
+
+#### Item 17 — Arreglar 48 ofensas RuboCop en `spec/` y re-habilitar en CI
+
+**Estado:** `[ ]`
+**Prioridad:** P2
+**Tipo:** `chore` `test`
+**Compatibilidad:** N/A
+**Estimación:** M (3-5h)
+**Release sugerido:** v0.3.1
+
+##### Contexto
+
+v0.2.1 excluyó `spec/` de RuboCop en `.rubocop.yml` para desbloquear el CI. La exclusión oculta ~48 ofensas preexistentes. El item 14 del roadmap ("CI con GitHub Actions") asume que RuboCop corre en CI — hoy no aplica a specs.
+
+##### Cambios
+
+1. Quitar `Exclude: - spec/` de `.rubocop.yml`.
+2. `bundle exec rubocop spec/ --auto-correct` para fixes automáticos.
+3. Fix manual de ofensas no auto-corregibles (típicamente `Metrics/BlockLength`, `RSpec/MultipleExpectations`, etc.).
+4. Re-habilitar rubocop en el workflow CI (`.github/workflows/main.yml`).
+
+##### Criterios de aceptación
+
+- [ ] `bundle exec rubocop` (sin argumentos, todo el proyecto) sin ofensas.
+- [ ] Workflow CI corre `bundle exec rubocop` antes de `rspec`.
+- [ ] Todos los specs siguen pasando después del auto-correct.
+
+##### Riesgos
+
+- **Auto-correct puede romper tests.** Correr `rspec` tras cada batch de auto-correct.
+- Algunas ofensas requieren configurar `RSpec/*` cops con límites razonables (ej. `Max: 20` para `RSpec/ExampleLength`).
+
+---
+
+#### Item 18 — Matrix Ruby en CI (3.2, 3.3, 3.4)
+
+**Estado:** `[ ]`
+**Prioridad:** P2
+**Tipo:** `chore`
+**Compatibilidad:** N/A
+**Estimación:** S (1-2h)
+**Release sugerido:** v0.3.1
+
+##### Contexto
+
+v0.2.1 solo corre CI en Ruby 3.4.4. La gema declara `required_ruby_version = ">= 3.0.0"`. Para validar compatibilidad con Rubies soportadas por Rails (3.2, 3.3), agregar matrix.
+
+##### Cambios
+
+1. En `.github/workflows/main.yml`:
+   ```yaml
+   strategy:
+     matrix:
+       ruby: ["3.2", "3.3", "3.4"]
+   ```
+2. Verificar que el binario pre-compilado de DuckDB 1.4.4 funciona en las 3 versiones de Ruby (debería — C ABI estable).
+3. Ajustar `TargetRubyVersion` en `.rubocop.yml` si corresponde (hoy `3.2`, puede bajarse a `3.0` si la gema lo soporta realmente — verificar `required_ruby_version`).
+
+##### Criterios de aceptación
+
+- [ ] Matrix con 3 versiones Ruby corre en CI.
+- [ ] Tiempo total < 10 min.
+- [ ] Las 3 versiones pasan specs.
+
+##### Riesgos
+
+- **DuckDB prebuilt binary dep** — si la C extension no linkea bien en alguna versión, tendrá que recompilar (cambia tiempo de CI).
+
+---
+
+#### Item 19 — Migrar tests S3 de `stub_const` a `Aws::S3::Client.stub_responses`
+
+**Estado:** `[ ]`
+**Prioridad:** P2
+**Tipo:** `refactor` `test`
+**Compatibilidad:** N/A
+**Estimación:** S (2h)
+**Release sugerido:** v0.3.1
+
+##### Contexto
+
+`spec/data_drain/storage/s3_spec.rb` usa `stub_const("Aws::S3::Client", Class.new ...)` para mockear el cliente AWS. Esto reemplaza la clase entera y es frágil (si AWS SDK agrega métodos nuevos, los tests no los cubren). AWS SDK soporta nativamente `Aws::S3::Client.new(stub_responses: true)`.
+
+##### Cambios
+
+1. En `spec/data_drain/storage/s3_spec.rb`, reemplazar `stub_const` por:
+   ```ruby
+   let(:s3_client) { Aws::S3::Client.new(stub_responses: true) }
+
+   before do
+     s3_client.stub_responses(:list_objects_v2, contents: [...])
+     allow(Aws::S3::Client).to receive(:new).and_return(s3_client)
+   end
+   ```
+2. Los tests de `destroy_partitions` quedan más declarativos.
+
+##### Criterios de aceptación
+
+- [ ] Tests pasan con el SDK real (`stub_responses` usa el client real, no mock).
+- [ ] No más `stub_const("Aws::S3::Client", ...)`.
+- [ ] Cobertura igual o superior.
+
+##### Riesgos
+
+- **Setup diferente:** `stub_responses` requiere configurar cada API call. Más verboso pero más robusto.
+
+---
+
+#### Item 20 — Limpiar `rubocop:disable` en `lib/` agregados en v0.2.0
+
+**Estado:** `[ ]`
+**Prioridad:** P2
+**Tipo:** `refactor`
+**Compatibilidad:** N/A
+**Estimación:** Depende del item 10 (refactor Engine#call)
+**Release sugerido:** v0.3.0 (junto con item 10)
+
+##### Contexto
+
+v0.2.0 agregó `# rubocop:disable` extensivos en 4 archivos:
+- `lib/data_drain/engine.rb`: `Metrics/ClassLength, AbcSize, MethodLength, Naming/AccessorMethodName`
+- `lib/data_drain/file_ingestor.rb`: `Metrics/AbcSize, CyclomaticComplexity, PerceivedComplexity, MethodLength`
+- `lib/data_drain/record.rb`: `Metrics/AbcSize, MethodLength`
+- `lib/data_drain/storage/s3.rb`: `Metrics/AbcSize, CyclomaticComplexity, MethodLength`
+
+Workaround razonable durante v0.2.0 pero deja deuda visible.
+
+##### Cambios
+
+Item 10 del roadmap (refactor `Engine#call` CC=13→5) resolverá parte. Este item complementa:
+
+1. Refactor `FileIngestor#call` en métodos privados (similar a item 10 para Engine).
+2. Refactor `Storage::S3#setup_duckdb` + `#create_s3_secret` — el CC viene del branching credencial explícita vs `credential_chain`. Puede simplificarse.
+3. Refactor `Record#execute_and_instantiate` — probablemente un guard clause resuelve.
+4. Quitar todos los `rubocop:disable` a medida que se refactoriza.
+
+##### Criterios de aceptación
+
+- [ ] Ningún `# rubocop:disable Metrics/*` en `lib/`.
+- [ ] `bundle exec rubocop lib/` sin ofensas ni disables.
+- [ ] Tests verdes.
+
+##### Riesgos
+
+- **Refactor mayor de `FileIngestor`** — no tiene tests integration tan robustos como Engine. Requiere atención.
+
+---
+
+#### Item 22 — Cache de RuboCop en CI
+
+**Estado:** `[ ]`
+**Prioridad:** P3
+**Tipo:** `chore`
+**Compatibilidad:** N/A
+**Estimación:** XS (30min)
+**Release sugerido:** v0.3.1
+**Origen:** Review big-pickle 2026-04-14 (ClickUp 86b9dka0c).
+
+##### Contexto
+
+Cuando el item 17 re-habilite rubocop en CI, correrá en cada push. Cachear el resultado con `actions/cache` sobre `~/.cache/rubocop_cache` acelera runs subsecuentes de 30s a <5s.
+
+##### Cambios
+
+En `.github/workflows/main.yml`, agregar step antes de `rubocop`:
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/rubocop_cache
+    key: rubocop-${{ matrix.ruby }}-${{ hashFiles('.rubocop.yml') }}
+    restore-keys: rubocop-${{ matrix.ruby }}-
+```
+
+##### Criterios de aceptación
+
+- [ ] Runs subsecuentes (sin cambios en `.rubocop.yml`) bajan tiempo de rubocop step.
+- [ ] Cache invalida correctamente si `.rubocop.yml` cambia.
+
+##### Riesgos
+
+- Ninguno significativo.
+
+---
+
+#### Item 23 — Coverage ≥ 90% en SimpleCov
+
+**Estado:** `[ ]`
+**Prioridad:** P2
+**Tipo:** `test`
+**Compatibilidad:** N/A
+**Estimación:** M (4-6h)
+**Release sugerido:** v0.3.1
+**Origen:** Review big-pickle 2026-04-14.
+
+##### Contexto
+
+v0.2.0 dejó `minimum_coverage 80` con cobertura real ~97%. Subir el umbral a 90% previene regresiones futuras y obliga a cubrir ramas nuevas.
+
+##### Cambios
+
+1. `spec/spec_helper.rb`: cambiar `minimum_coverage 80` → `minimum_coverage 90`.
+2. Correr `bundle exec rspec` y verificar qué ramas quedan descubiertas.
+3. Agregar tests para cubrirlas (típicamente branches de error, edge cases de `safe_log` y `destroy_partitions`).
+
+##### Criterios de aceptación
+
+- [ ] `SimpleCov` reporta ≥ 90% líneas.
+- [ ] Ningún archivo de `lib/` con cobertura < 80%.
+- [ ] CI falla si alguna corrida baja del 90%.
+
+##### Riesgos
+
+- Puede requerir tests con Postgres real para cubrir `purge_from_postgres` completo — decidir si entran en el suite default o bajo tag `:integration`.
+
+---
+
+#### Item 24 — CI badge en README
+
+**Estado:** `[ ]`
+**Prioridad:** P3
+**Tipo:** `docs`
+**Compatibilidad:** N/A
+**Estimación:** XS (10min)
+**Release sugerido:** v0.3.1
+**Origen:** Review big-pickle 2026-04-14.
+
+##### Contexto
+
+README no muestra estado de CI. Un badge al inicio confirma visualmente que la gema es activamente testeada.
+
+##### Cambios
+
+Agregar al tope del README después del título:
+```markdown
+# DataDrain
+
+[![CI](https://github.com/gedera/data_drain/actions/workflows/main.yml/badge.svg)](https://github.com/gedera/data_drain/actions/workflows/main.yml)
+```
+
+Opcionalmente badges adicionales:
+- Cobertura (requiere integrar con CodeClimate o Codecov)
+- Version de Gem (si se publica en RubyGems)
+
+##### Criterios de aceptación
+
+- [ ] Badge se ve verde en main.
+- [ ] Badge apunta al workflow correcto.
 
 ---
 
