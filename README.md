@@ -124,8 +124,6 @@ DataDrain::Engine.new(
 ).call
 ```
 
-Script PySpark de referencia: [`docs/glue_pyspark_example.py`](docs/glue_pyspark_example.py).
-
 ### Consultar el Data Lake (Record)
 
 ```ruby

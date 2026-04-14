@@ -207,7 +207,7 @@ ArchivedX.connection.close  # Rompe la siguiente query del mismo thread
 
 **Razón:** `Record.connection` es thread-local y persistente — diseñada para amortizar el costo de cargar `httpfs` y credenciales. Cerrarla obliga a reconectar todo en la próxima query y puede dejar el `Thread.current` apuntando a una conexión muerta (`Database` GC'd).
 
-**Alternativa:** No cerrarla manualmente. Vive mientras vive el thread.
+**Alternativa:** No usar `Record.connection.close` directamente. Si necesitás cerrar (Sidekiq/Puma middleware), usar `Record.disconnect!` que cierra `db` + `conn` y limpia `Thread.current` atómicamente. En threads de larga vida, esto previene memory leak.
 
 ---
 

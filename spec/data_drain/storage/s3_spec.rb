@@ -68,6 +68,13 @@ RSpec.describe DataDrain::Storage::S3 do
       secret_query = mock_conn.queries.find { |q| q.include?("KEY_ID") }
       expect(secret_query).to include("KEY_ID 'key''with''quotes'")
     end
+
+    it "escapa comillas simples en aws_region" do
+      config.aws_region = "us-east-1' OR 1=1"
+      adapter.setup_duckdb(mock_conn)
+      secret_query = mock_conn.queries.find { |q| q.include?("REGION") }
+      expect(secret_query).to include("REGION 'us-east-1'' OR 1=1'")
+    end
   end
 
   describe "#build_path" do

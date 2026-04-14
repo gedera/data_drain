@@ -3,7 +3,7 @@
 require "simplecov"
 SimpleCov.start do
   add_filter "/spec/"
-  minimum_coverage 60
+  minimum_coverage 80
 end
 
 require "data_drain"
