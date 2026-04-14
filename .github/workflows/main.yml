@@ -24,7 +24,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
+          bundler-cache: false
       - name: Download DuckDB library
         run: |
           curl -sOL https://github.com/duckdb/duckdb/releases/download/v1.4.4/libduckdb-linux-amd64.zip
@@ -32,8 +32,9 @@ jobs:
       - name: Install DuckDB library
         run: |
           sudo cp libduckdb/libduckdb.so /usr/local/lib/
+          sudo cp libduckdb/duckdb.h /usr/local/include/
           sudo ldconfig
-      - name: Build with DuckDB
-        run: bundle exec rake build -- --with-duckdb-include=${GITHUB_WORKSPACE}/libduckdb --with-duckdb-lib=${GITHUB_WORKSPACE}/libduckdb
+      - name: Install gems
+        run: bundle install --jobs 4 --retry 3
       - name: Run the default task
         run: bundle exec rake
