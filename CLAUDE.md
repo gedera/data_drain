@@ -79,3 +79,5 @@ bin/console             # REPL de desarrollo
 
 - `limit_ram` y `tmp_directory` en la configuración evitan OOM en contenedores
 - DuckDB usa spill-to-disk automáticamente cuando `tmp_directory` está seteado
+- Ver `skill/references/postgres-tuning.md` para guía de tuning por tamaño de tabla:
+  índices, VACUUM post-purga, y particionamiento declarativo para tablas >100GB

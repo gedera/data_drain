@@ -51,6 +51,9 @@ DataDrain.configure do |config|
   config.limit_ram     = '2GB'                # evita OOM en contenedores
   config.tmp_directory = '/tmp/duckdb_work'   # spill-to-disk (preferir SSD/NVMe)
 
+  # Tuning de Postgres: ver skill/references/postgres-tuning.md
+  # Índices para DELETE, VACUUM post-purga, particionamiento para tablas >100GB
+
   config.logger = Rails.logger
 end
 ```

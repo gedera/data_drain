@@ -213,3 +213,4 @@ Catálogo completo en [Antipatrones](references/antipatrones.md). Resumen de los
 - [API Detallada](references/api-detallada.md) — Firmas completas, parámetros, retornos y comportamientos de cada clase pública.
 - [Eventos y Telemetría](references/eventos-telemetria.md) — Catálogo completo de eventos KV emitidos por la gema.
 - [Antipatrones](references/antipatrones.md) — Qué NO hacer y alternativas correctas.
+- [Postgres Tuning](references/postgres-tuning.md) — Índices, VACUUM, particionamiento y diagnóstico por tamaño de tabla.
