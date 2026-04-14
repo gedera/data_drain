@@ -23,27 +23,28 @@ module DataDrain
     # @option options [String] :where_clause (Opcional) Condición SQL extra.
     # @option options [Boolean] :skip_export (Opcional) Si es true, no realiza el export a Parquet, solo validación y purga.
     def initialize(options)
-      @start_date     = options.fetch(:start_date).beginning_of_day
-      
-      # Usamos el inicio del día siguiente como límite superior estricto (<)
-      # Esto evita problemas de precisión con los microsegundos al usar end_of_day
-      @end_date       = options.fetch(:end_date).to_date.next_day.beginning_of_day
-      
-      @table_name     = options.fetch(:table_name)
-      @folder_name    = options.fetch(:folder_name, @table_name)
-      @select_sql     = options.fetch(:select_sql, "*")
-      @partition_keys = options.fetch(:partition_keys)
-      @primary_key    = options.fetch(:primary_key, "id")
-      @where_clause   = options[:where_clause]
-      @bucket         = options[:bucket]
-      @skip_export    = options.fetch(:skip_export, false)
+      @start_date = options.fetch(:start_date).beginning_of_day
 
-      @config  = DataDrain.configuration
-      @logger  = @config.logger
+      @end_date = options.fetch(:end_date).to_date.next_day.beginning_of_day
+
+      @table_name = options.fetch(:table_name)
+      Validations.validate_identifier!(:table_name, @table_name)
+
+      @folder_name = options.fetch(:folder_name, @table_name)
+      @select_sql = options.fetch(:select_sql, "*")
+      @partition_keys = options.fetch(:partition_keys)
+      @primary_key = options.fetch(:primary_key, "id")
+      Validations.validate_identifier!(:primary_key, @primary_key)
+      @where_clause = options[:where_clause]
+      @bucket = options[:bucket]
+      @skip_export = options.fetch(:skip_export, false)
+
+      @config = DataDrain.configuration
+      @logger = @config.logger
       @adapter = DataDrain::Storage.adapter
 
       database = DuckDB::Database.open(":memory:")
-      @duckdb  = database.connect
+      @duckdb = database.connect
     end
 
     # Ejecuta el flujo completo del motor: Setup, Conteo, Exportación (opcional), Verificación y Purga.
@@ -51,7 +52,8 @@ module DataDrain
     # @return [Boolean] `true` si el proceso finalizó con éxito, `false` si falló la integridad.
     def call
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      safe_log(:info, "engine.start", { table: @table_name, start_date: @start_date.to_date, end_date: @end_date.to_date })
+      safe_log(:info, "engine.start",
+               { table: @table_name, start_date: @start_date.to_date, end_date: @end_date.to_date })
 
       setup_duckdb
 
@@ -62,7 +64,8 @@ module DataDrain
 
       if @pg_count.zero?
         duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        safe_log(:info, "engine.skip_empty", { table: @table_name, duration_s: duration.round(2), db_query_duration_s: db_query_duration.round(2) })
+        safe_log(:info, "engine.skip_empty",
+                 { table: @table_name, duration_s: duration.round(2), db_query_duration_s: db_query_duration.round(2) })
         return true
       end
 
@@ -90,18 +93,19 @@ module DataDrain
 
         duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
         safe_log(:info, "engine.complete", {
-          table: @table_name,
-          duration_s: duration.round(2),
-          db_query_duration_s: db_query_duration.round(2),
-          export_duration_s: export_duration.round(2),
-          integrity_duration_s: integrity_duration.round(2),
-          purge_duration_s: purge_duration.round(2),
-          count: @pg_count
-        })
+                   table: @table_name,
+                   duration_s: duration.round(2),
+                   db_query_duration_s: db_query_duration.round(2),
+                   export_duration_s: export_duration.round(2),
+                   integrity_duration_s: integrity_duration.round(2),
+                   purge_duration_s: purge_duration.round(2),
+                   count: @pg_count
+                 })
         true
       else
         duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        safe_log(:error, "engine.integrity_error", { table: @table_name, duration_s: duration.round(2), count: @pg_count })
+        safe_log(:error, "engine.integrity_error",
+                 { table: @table_name, duration_s: duration.round(2), count: @pg_count })
         false
       end
     end
@@ -142,7 +146,12 @@ module DataDrain
       @adapter.prepare_export_path(@bucket, @folder_name)
 
       # Determinamos el path base de destino según el adaptador
-      dest_path = @config.storage_mode.to_sym == :s3 ? "s3://#{@bucket}/#{@folder_name}/" : File.join(@bucket, @folder_name, "")
+      dest_path = if @config.storage_mode.to_sym == :s3
+                    "s3://#{@bucket}/#{@folder_name}/"
+                  else
+                    File.join(@bucket,
+                              @folder_name, "")
+                  end
 
       pg_sql = "SELECT #{@select_sql} FROM public.#{@table_name} WHERE #{base_where_sql}"
       pg_sql = pg_sql.gsub("'", "''")
@@ -154,7 +163,7 @@ module DataDrain
         ) TO '#{dest_path}'
         (
           FORMAT PARQUET,
-          PARTITION_BY (#{@partition_keys.join(', ')}),
+          PARTITION_BY (#{@partition_keys.join(", ")}),
           COMPRESSION 'ZSTD',
           OVERWRITE_OR_IGNORE 1
         );
@@ -180,7 +189,8 @@ module DataDrain
         return false
       end
 
-      safe_log(:info, "engine.integrity_check", { table: @table_name, pg_count: @pg_count, parquet_count: parquet_result })
+      safe_log(:info, "engine.integrity_check",
+               { table: @table_name, pg_count: @pg_count, parquet_count: parquet_result })
       @pg_count == parquet_result
     end
 
@@ -189,11 +199,11 @@ module DataDrain
       safe_log(:info, "engine.purge_start", { table: @table_name, batch_size: @config.batch_size })
 
       conn = PG.connect(
-        host:     @config.db_host,
-        port:     @config.db_port,
-        user:     @config.db_user,
+        host: @config.db_host,
+        port: @config.db_port,
+        user: @config.db_user,
         password: @config.db_pass,
-        dbname:   @config.db_name
+        dbname: @config.db_name
       )
 
       unless @config.idle_in_transaction_session_timeout.nil?
@@ -223,10 +233,10 @@ module DataDrain
         # Heartbeat cada 100 lotes para monitorear procesos largos de 1TB
         if (batches_processed % 100).zero?
           safe_log(:info, "engine.purge_heartbeat", {
-            table: @table_name,
-            batches_processed_count: batches_processed,
-            rows_deleted_count: total_deleted
-          })
+                     table: @table_name,
+                     batches_processed_count: batches_processed,
+                     rows_deleted_count: total_deleted
+                   })
         end
 
         sleep(@config.throttle_delay) if @config.throttle_delay.positive?

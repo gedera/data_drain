@@ -2,31 +2,63 @@
 
 RSpec.describe DataDrain::Engine do
   let(:bucket) { "tmp/test_lake" }
-  let(:options) do
+  let(:base_options) do
     {
       bucket: bucket,
       start_date: Time.new(2026, 3, 1),
       end_date: Time.new(2026, 3, 31),
-      table_name: "versions",
-      partition_keys: %w[year month],
-      primary_key: "id"
+      partition_keys: %w[year month]
     }
   end
 
-  let(:engine) { described_class.new(options) }
+  let(:engine) { described_class.new(base_options.merge(table_name: "versions")) }
 
-  # Mocks para la base de datos
   let(:mock_duckdb) { instance_double(DuckDB::Connection) }
   let(:mock_pg_conn) { instance_double(PG::Connection) }
   let(:mock_pg_result) { instance_double(PG::Result) }
 
   before do
-    # Interceptamos la creación de la conexión de DuckDB
     allow_any_instance_of(DuckDB::Database).to receive(:connect).and_return(mock_duckdb)
-
-    # Interceptamos la conexión a Postgres
     allow(PG).to receive(:connect).and_return(mock_pg_conn)
     allow(mock_pg_conn).to receive(:close)
+  end
+
+  describe "validación de identificadores" do
+    it "rechaza table_name con punto y coma (SQL injection attempt)" do
+      expect do
+        described_class.new(base_options.merge(table_name: "x; DROP TABLE y"))
+      end.to raise_error(DataDrain::ConfigurationError, /table_name/)
+    end
+
+    it "rechaza primary_key con espacios" do
+      expect do
+        described_class.new(base_options.merge(table_name: "versions", primary_key: "id desc"))
+      end.to raise_error(DataDrain::ConfigurationError, /primary_key/)
+    end
+
+    it "rechaza table_name con punto (schema.table)" do
+      expect do
+        described_class.new(base_options.merge(table_name: "public.versions"))
+      end.to raise_error(DataDrain::ConfigurationError, /table_name/)
+    end
+
+    it "acepta identificador válido con guión bajo y números" do
+      expect do
+        described_class.new(base_options.merge(table_name: "my_table_2", primary_key: "id_2"))
+      end.not_to raise_error
+    end
+
+    it "acepta identificadores con mayúsculas" do
+      expect do
+        described_class.new(base_options.merge(table_name: "Versions", primary_key: "Id"))
+      end.not_to raise_error
+    end
+
+    it "acepta identificador que empieza con guión bajo" do
+      expect do
+        described_class.new(base_options.merge(table_name: "_internal_table"))
+      end.not_to raise_error
+    end
   end
 
   it "ejecuta el flujo ETL completo si la integridad es exitosa" do

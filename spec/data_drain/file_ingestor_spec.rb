@@ -5,11 +5,41 @@ RSpec.describe DataDrain::FileIngestor do
   let(:folder_name) { "netflow" }
   let(:csv_path)    { "tmp/test_netflow.csv" }
 
+  describe "validación de identificadores" do
+    it "rechaza folder_name con punto y coma" do
+      expect do
+        described_class.new(
+          bucket: bucket,
+          source_path: csv_path,
+          folder_name: "netflow; rm -rf /"
+        )
+      end.to raise_error(DataDrain::ConfigurationError, /folder_name/)
+    end
+
+    it "rechaza folder_name con espacios" do
+      expect do
+        described_class.new(
+          bucket: bucket,
+          source_path: csv_path,
+          folder_name: "my folder"
+        )
+      end.to raise_error(DataDrain::ConfigurationError, /folder_name/)
+    end
+
+    it "acepta folder_name válido" do
+      expect do
+        described_class.new(
+          bucket: bucket,
+          source_path: csv_path,
+          folder_name: "my_folder_2"
+        )
+      end.not_to raise_error
+    end
+  end
+
   before do
     FileUtils.mkdir_p("tmp")
 
-    # Generamos un CSV crudo escribiendo directamente un string,
-    # sin necesidad de importar la librería CSV de Ruby.
     File.write(csv_path, <<~CSV)
       id,isp_id,bytes,timestamp
       1,42,1024,2026-03-11 10:00:00
