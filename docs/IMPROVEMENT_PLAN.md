@@ -1,7 +1,7 @@
 # DataDrain — Plan de Mejora v0.2.0 → v0.3.1
 
-**Versión actual:** 0.2.0
-**Última actualización:** 2026-04-13
+**Versión actual:** 0.2.2
+**Última actualización:** 2026-04-14
 **Owner:** Gabriel
 **Estado global:** No iniciado
 
@@ -502,7 +502,7 @@ Purgar millones de rows deja dead tuples en Postgres. Sin `VACUUM`, el espacio n
 
 #### Item 7 — `max_wait_seconds` en `GlueRunner.run_and_wait`
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `feat`
 **Compatibilidad:** backward-compatible
@@ -553,7 +553,7 @@ Purgar millones de rows deja dead tuples en Postgres. Sin `VACUUM`, el espacio n
 
 #### Item 8 — `Configuration#validate!`
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `feat`
 **Compatibilidad:** backward-compatible (validación opcional explícita)
@@ -624,7 +624,7 @@ Purgar millones de rows deja dead tuples en Postgres. Sin `VACUUM`, el espacio n
 
 #### Item 9 — Filtro de secretos por regex en Observability
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `security`
 **Compatibilidad:** backward-compatible (filtra más, no menos)
@@ -670,7 +670,7 @@ val = SENSITIVE_KEY_PATTERN.match?(k.to_s) ? "[FILTERED]" : v
 
 #### Item 11a — Documentación de Postgres tuning por tamaño de tabla
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `docs`
 **Compatibilidad:** N/A

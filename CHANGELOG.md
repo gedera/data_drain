@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+## [0.2.2] - 2026-04-14
+
+### Security
+- `Observability#safe_log` filtra secretos con regex `/password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i` — ahora captura variantes como `db_password`, `aws_secret_access_key`, `bearer_token`, `private_key`, `*credential*`. (item 9)
+
+### Features
+- `GlueRunner.run_and_wait` acepta `max_wait_seconds:` para evitar bloqueo indefinido. Default `nil` (sin límite, backward-compatible). Emite `glue_runner.timeout` y levanta `DataDrain::Error` cuando excede. (item 7)
+- `Configuration#validate!` y `Configuration#validate_for_engine!` invocados automáticamente en `Engine`, `FileIngestor` y `GlueRunner`. Falla rápido con errores descriptivos si falta configuración. (item 8)
+
+### Docs
+- `skill/references/postgres-tuning.md`: guía de tuning Postgres por tamaño de tabla — índices, VACUUM post-purga, particionamiento, diagnóstico. (item 11a)
+
+### Cleanups (review PR #6)
+- Fix typo `依赖` en CHANGELOG v0.2.1 (A1).
+- Comment explicativo en `Record.disconnect!` rescue (A2).
+- Cobertura real string-keys vs symbol-keys en `Record.build_query_path` (A3).
+- Cerrar conn+db en `record_spec.rb#before(:all)` para evitar memory leak en suite (A4).
+- Reorder `public`/`private` en `storage/s3.rb` (B1).
+
+### BREAKING (preventivo)
+- `Engine.new` / `FileIngestor.new` / `GlueRunner.run_and_wait` ahora levantan `DataDrain::ConfigurationError` en el boot si la configuración está incompleta. Antes fallaban tarde con errores oscuros. La gema aún no está en uso en producción — no hay impacto real.
+
 ## [0.2.1] - 2026-04-13
 
 ### Correcciones
