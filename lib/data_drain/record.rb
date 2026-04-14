@@ -38,7 +38,8 @@ module DataDrain
 
       entry[:conn]&.close
       entry[:db]&.close
-    rescue StandardError # rubocop:disable Lint/SuppressedException
+    rescue StandardError
+      nil
     end
 
     # Retorna la conexión persistente a DuckDB en memoria para el hilo (Thread) actual.

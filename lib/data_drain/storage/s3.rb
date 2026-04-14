@@ -2,9 +2,9 @@
 
 module DataDrain
   module Storage
-    # Implementación del adaptador de almacenamiento para Amazon S3.
     class S3 < Base
       # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
+
       # Carga la extensión httpfs en DuckDB e inyecta las credenciales de AWS.
       # Si aws_access_key_id y aws_secret_access_key están seteados, usa
       # credenciales explícitas. Si no, usa credential_chain (IAM role, env vars,
@@ -15,42 +15,6 @@ module DataDrain
         connection.query("INSTALL httpfs; LOAD httpfs;")
         create_s3_secret(connection)
       end
-
-      private
-
-      # @param connection [DuckDB::Connection]
-      # @raise [DataDrain::ConfigurationError]
-      def create_s3_secret(connection)
-        region = @config.aws_region
-        raise DataDrain::ConfigurationError, "aws_region es obligatorio para storage_mode=:s3" if region.nil?
-
-        if @config.aws_access_key_id && @config.aws_secret_access_key
-          connection.query(<<~SQL)
-            CREATE OR REPLACE SECRET data_drain_s3 (
-              TYPE S3,
-              KEY_ID '#{escape_sql(@config.aws_access_key_id)}',
-              SECRET '#{escape_sql(@config.aws_secret_access_key)}',
-              REGION '#{escape_sql(region)}'
-            );
-          SQL
-        else
-          connection.query(<<~SQL)
-            CREATE OR REPLACE SECRET data_drain_s3 (
-              TYPE S3,
-              PROVIDER credential_chain,
-              REGION '#{escape_sql(region)}'
-            );
-          SQL
-        end
-      end
-
-      # @param value [String]
-      # @return [String]
-      def escape_sql(value)
-        value.to_s.gsub("'", "''")
-      end
-
-      public
 
       # @param bucket [String]
       # @param folder_name [String]
@@ -95,6 +59,38 @@ module DataDrain
       end
 
       private
+
+      # @param connection [DuckDB::Connection]
+      # @raise [DataDrain::ConfigurationError]
+      def create_s3_secret(connection)
+        region = @config.aws_region
+        raise DataDrain::ConfigurationError, "aws_region es obligatorio para storage_mode=:s3" if region.nil?
+
+        if @config.aws_access_key_id && @config.aws_secret_access_key
+          connection.query(<<~SQL)
+            CREATE OR REPLACE SECRET data_drain_s3 (
+              TYPE S3,
+              KEY_ID '#{escape_sql(@config.aws_access_key_id)}',
+              SECRET '#{escape_sql(@config.aws_secret_access_key)}',
+              REGION '#{escape_sql(region)}'
+            );
+          SQL
+        else
+          connection.query(<<~SQL)
+            CREATE OR REPLACE SECRET data_drain_s3 (
+              TYPE S3,
+              PROVIDER credential_chain,
+              REGION '#{escape_sql(region)}'
+            );
+          SQL
+        end
+      end
+
+      # @param value [String]
+      # @return [String]
+      def escape_sql(value)
+        value.to_s.gsub("'", "''")
+      end
 
       # @param client [Aws::S3::Client]
       # @param bucket [String]
