@@ -234,9 +234,12 @@ DataDrain::Engine.new(
 
 **Incorrecto:**
 ```ruby
-DataDrain::GlueRunner.run_and_wait("job", args)  # Asumir que retorna en X minutos
+DataDrain::GlueRunner.run_and_wait("job", args)  # Sin timeout, puede bloquearse
 ```
 
-**Razón:** El loop de polling no tiene timeout máximo. Si Glue queda colgado en `RUNNING` indefinidamente, `run_and_wait` bloquea para siempre.
+**Razón:** Si Glue queda colgado en `RUNNING`, bloquea indefinidamente.
 
-**Alternativa:** Envolver en `Timeout.timeout(N)` en el caller, o monitorear el job desde fuera (CloudWatch alarm). Mejor aún: futura mejora de la gema agregar `max_wait_seconds`.
+**Alternativa:** Usar `max_wait_seconds:` (desde v0.2.2):
+```ruby
+GlueRunner.run_and_wait("job", args, max_wait_seconds: 3600)  # 1h max
+```

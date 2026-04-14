@@ -14,15 +14,16 @@ module DataDrain
     # @param job_name [String] Nombre del Job en la consola de AWS.
     # @param arguments [Hash] Argumentos de ejecución (deben empezar con --).
     # @param polling_interval [Integer] Segundos de espera entre cada chequeo de estado.
+    # @param max_wait_seconds [Integer, nil] Timeout máximo en segundos.
+    #   nil = sin límite (comportamiento anterior).
     # @return [Boolean] true si el Job terminó exitosamente (SUCCEEDED).
-    # @raise [RuntimeError] Si el Job falla o se detiene.
-    def self.run_and_wait(job_name, arguments = {}, polling_interval: 30)
+    # @raise [DataDrain::Error] si max_wait_seconds excede antes de SUCCEEDED.
+    # @raise [RuntimeError] si el Job falla o se detiene.
+    def self.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil)
       config = DataDrain.configuration
       client = Aws::Glue::Client.new(region: config.aws_region)
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      # Usamos el logger de la configuración directamente para el primer log antes de instanciar safe_log si fuera necesario
-      # Pero como extendemos Observability, usamos safe_log directamente.
       @logger = config.logger
 
       safe_log(:info, "glue_runner.start", { job: job_name })
@@ -30,6 +31,17 @@ module DataDrain
       run_id = resp.job_run_id
 
       loop do
+        if max_wait_seconds &&
+           (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) > max_wait_seconds
+          safe_log(:error, "glue_runner.timeout", {
+                     job: job_name,
+                     run_id: run_id,
+                     max_wait_seconds: max_wait_seconds
+                   })
+          raise DataDrain::Error,
+                "Glue Job #{job_name} (Run ID: #{run_id}) excedió max_wait_seconds=#{max_wait_seconds}"
+        end
+
         run_info = client.get_job_run(job_name: job_name, run_id: run_id).job_run
         status = run_info.job_run_state
 

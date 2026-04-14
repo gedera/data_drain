@@ -164,23 +164,23 @@ Formato: `#<Class attr1: val1, attr2: val2, ...>`.
 
 ## `DataDrain::GlueRunner`
 
-### `.run_and_wait(job_name, arguments = {}, polling_interval: 30) → true`
+### `.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil) → true`
 
 | Parámetro | Tipo | Descripción |
 |-----------|------|-------------|
 | `job_name` | String | Nombre del Job en consola AWS |
 | `arguments` | Hash | Args con prefijo `--` (ej. `"--start_date" => "..."`) |
 | `polling_interval` | Integer | Segundos entre chequeos. Default `30` |
+| `max_wait_seconds` | Integer, nil | Timeout máximo. nil = sin límite. Default `nil` |
 
 Flujo:
 1. `Aws::Glue::Client.new(region: config.aws_region)`
 2. `start_job_run` → captura `run_id`
 3. Loop: `get_job_run`, evalúa `job_run_state`:
+   - Si `max_wait_seconds` excede → log `glue_runner.timeout`, `raise DataDrain::Error`
    - `SUCCEEDED` → log `glue_runner.complete`, retorna `true`
    - `FAILED|STOPPED|TIMEOUT` → log `glue_runner.failed` (incluye `error_message` truncado a 200 chars), `raise RuntimeError`
    - Otro → log `glue_runner.polling`, `sleep polling_interval`
-
-No tiene timeout máximo. Si Glue queda colgado en `RUNNING`, esto bloquea indefinidamente.
 
 ---
 

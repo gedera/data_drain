@@ -107,5 +107,35 @@ RSpec.describe DataDrain::GlueRunner do
         described_class.run_and_wait("failing-job")
       end.to raise_error(RuntimeError, /FAILED/)
     end
+
+    it "levanta DataDrain::Error cuando max_wait_seconds se excede" do
+      start_response = double("start_resp", job_run_id: "run-timeout")
+      running_info = double("run_info", job_run_state: "RUNNING", error_message: nil)
+
+      allow(mock_client).to receive(:start_job_run).and_return(start_response)
+      allow(mock_client).to receive(:get_job_run)
+        .and_return(double("get_resp", job_run: running_info))
+
+      times = [0.0, 0.1, 200.0]
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) do
+        times.shift || 300.0
+      end
+      allow(Kernel).to receive(:sleep)
+
+      expect do
+        described_class.run_and_wait("slow-job", {}, polling_interval: 1, max_wait_seconds: 60)
+      end.to raise_error(DataDrain::Error, /max_wait_seconds=60/)
+    end
+
+    it "sin max_wait_seconds mantiene comportamiento anterior (no timeout local)" do
+      start_response = double("start_resp", job_run_id: "run-ok")
+      succeeded_info = double("run_info", job_run_state: "SUCCEEDED", error_message: nil)
+
+      allow(mock_client).to receive(:start_job_run).and_return(start_response)
+      allow(mock_client).to receive(:get_job_run)
+        .and_return(double("get_resp", job_run: succeeded_info))
+
+      expect { described_class.run_and_wait("ok-job") }.not_to raise_error
+    end
   end
 end
