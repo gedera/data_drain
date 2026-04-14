@@ -1,6 +1,6 @@
 # DataDrain — Plan de Mejora v0.2.0 → v0.3.1
 
-**Versión actual:** 0.1.19
+**Versión actual:** 0.2.0
 **Última actualización:** 2026-04-13
 **Owner:** Gabriel
 **Estado global:** No iniciado
@@ -100,7 +100,7 @@ Cada item indica si es **breaking** o **backward-compatible**. Breaking changes 
 
 #### Item 1 — Migrar credenciales S3 a `credential_chain` de DuckDB
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P0
 **Tipo:** `security` `feat`
 **Compatibilidad:** backward-compatible (con fallback al modo explícito)
@@ -174,7 +174,7 @@ Las credenciales quedan en el proceso DuckDB y, si el query log de DuckDB se act
 
 #### Item 2 — Validación regex de `table_name`, `primary_key` (anti-SQL injection)
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P0
 **Tipo:** `security` `fix`
 **Compatibilidad:** backward-compatible (rechaza inputs que antes pasaban silenciosamente)
@@ -241,7 +241,7 @@ Las credenciales quedan en el proceso DuckDB y, si el query log de DuckDB se act
 
 #### Item 3 — Cleanup de conexión DuckDB thread-local
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P0
 **Tipo:** `fix` `feat`
 **Compatibilidad:** backward-compatible (agrega API, no quita)
@@ -306,7 +306,7 @@ Riesgos:
 
 #### Item 4 — Cobertura de tests P0 (Record, Storage, GlueRunner, Observability)
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P0
 **Tipo:** `test`
 **Compatibilidad:** N/A
