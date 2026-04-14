@@ -11,6 +11,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }}
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     strategy:
       matrix:
         ruby:
@@ -24,6 +26,17 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
-      - name: Run the default task
-        run: bundle exec rake
+          bundler-cache: false
+      - name: Download DuckDB library
+        run: |
+          curl -sOL https://github.com/duckdb/duckdb/releases/download/v1.4.4/libduckdb-linux-amd64.zip
+          unzip -o libduckdb-linux-amd64.zip -d libduckdb
+      - name: Install DuckDB library
+        run: |
+          sudo cp libduckdb/libduckdb.so /usr/local/lib/
+          sudo cp libduckdb/duckdb.h /usr/local/include/
+          sudo ldconfig
+      - name: Install gems
+        run: bundle install --jobs 4 --retry 3
+      - name: Run tests
+        run: bundle exec rspec
