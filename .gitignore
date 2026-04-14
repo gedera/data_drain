@@ -12,3 +12,9 @@
 
 # Claude Code local settings (machine-specific)
 .claude/
+
+# Agent skills and config (machine-specific)
+/.agents/
+/.env
+skills.lock
+skills.yml
