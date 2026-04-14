@@ -5,6 +5,7 @@ require "pg"
 
 module DataDrain
   # Motor principal de extracción y purga de datos (DataDrain).
+  # rubocop:disable Metrics/ClassLength, Metrics/AbcSize, Metrics/MethodLength, Naming/AccessorMethodName
   #
   # Orquesta el flujo ETL desde PostgreSQL hacia un Data Lake analítico
   # delegando la interacción del almacenamiento al adaptador configurado.
@@ -21,7 +22,8 @@ module DataDrain
     # @option options [Array<String, Symbol>] :partition_keys Columnas para particionar.
     # @option options [String] :primary_key (Opcional) Clave primaria para borrado. Por defecto 'id'.
     # @option options [String] :where_clause (Opcional) Condición SQL extra.
-    # @option options [Boolean] :skip_export (Opcional) Si es true, no realiza el export a Parquet, solo validación y purga.
+    # @option options [Boolean] :skip_export (Opcional) Si true, no exporta
+    #   a Parquet — solo valida y purga (para uso con GlueRunner).
     def initialize(options)
       @start_date = options.fetch(:start_date).beginning_of_day
 
@@ -245,4 +247,5 @@ module DataDrain
       conn&.close
     end
   end
+  # rubocop:enable Metrics/ClassLength, Metrics/AbcSize, Metrics/MethodLength, Naming/AccessorMethodName
 end

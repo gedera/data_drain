@@ -16,6 +16,7 @@ require_relative "data_drain/glue_runner"
 require_relative "data_drain/types/json_type"
 ActiveModel::Type.register(:json, DataDrain::Types::JsonType)
 
+# DSL para extraer, archivar y purgar datos entre PostgreSQL y un Data Lake en Parquet.
 module DataDrain
   class << self
     # @return [DataDrain::Configuration]

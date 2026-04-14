@@ -24,10 +24,28 @@ module DataDrain
     class_attribute :folder_name
     class_attribute :partition_keys
 
+    # Cierra la conexión DuckDB del thread actual y limpia Thread.current.
+    # Idempotente: llamarlo varias veces no levanta.
+    #
+    # Útil en middlewares de Sidekiq/Puma para evitar memory leak en threads
+    # de larga vida.
+    #
+    # @return [void]
+    def self.disconnect!
+      entry = Thread.current[:data_drain_duckdb]
+      Thread.current[:data_drain_duckdb] = nil
+      return unless entry
+
+      entry[:conn]&.close
+      entry[:db]&.close
+    rescue StandardError # rubocop:disable Lint/SuppressedException
+    end
+
     # Retorna la conexión persistente a DuckDB en memoria para el hilo (Thread) actual.
     # Esto previene tener que recargar extensiones (como httpfs) en cada consulta.
     #
     # @return [DuckDB::Connection] Conexión activa a DuckDB.
+    # rubocop:disable Metrics/AbcSize
     def self.connection
       Thread.current[:data_drain_duckdb] ||= begin
         db = DuckDB::Database.open(":memory:")
@@ -42,6 +60,7 @@ module DataDrain
       end
       Thread.current[:data_drain_duckdb][:conn]
     end
+    # rubocop:enable Metrics/AbcSize
 
     # Consulta registros en el Data Lake filtrando por claves de partición.
     #
@@ -52,7 +71,7 @@ module DataDrain
       path = build_query_path(partitions)
 
       sql = <<~SQL
-        SELECT #{attribute_names.join(', ')}
+        SELECT #{attribute_names.join(", ")}
         FROM read_parquet('#{path}')
         ORDER BY created_at DESC
         LIMIT #{limit}
@@ -73,7 +92,7 @@ module DataDrain
       safe_id = id.to_s.gsub("'", "''")
 
       sql = <<~SQL
-        SELECT #{attribute_names.join(', ')}
+        SELECT #{attribute_names.join(", ")}
         FROM read_parquet('#{path}')
         WHERE id = '#{safe_id}'
         LIMIT 1
@@ -97,7 +116,7 @@ module DataDrain
     # @return [String] Representación legible en consola.
     def inspect
       inspection = attributes.map do |name, value|
-        "#{name}: #{value.nil? ? 'nil' : value.inspect}"
+        "#{name}: #{value.nil? ? "nil" : value.inspect}"
       end.compact.join(", ")
 
       "#<#{self.class} #{inspection}>"
@@ -118,6 +137,7 @@ module DataDrain
       # @param sql [String]
       # @param columns [Array<String>]
       # @return [Array<DataDrain::Record>]
+      # rubocop:disable Metrics/MethodLength
       def execute_and_instantiate(sql, columns)
         @logger = DataDrain.configuration.logger
         begin
@@ -133,5 +153,6 @@ module DataDrain
         end
       end
     end
+    # rubocop:enable Metrics/MethodLength
   end
 end

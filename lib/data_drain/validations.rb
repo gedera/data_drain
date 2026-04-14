@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module DataDrain
+  # Módulo de validación de configuración para prevenir errores de uso.
   module Validations
     IDENTIFIER_REGEX = /\A[a-zA-Z_][a-zA-Z0-9_]*\z/
 

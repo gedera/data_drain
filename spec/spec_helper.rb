@@ -19,10 +19,6 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 
-  config.define_derived_metadata(:integration) do |_metadata|
-    skip "Integration test — requires Postgres real or external service"
-  end
-
   # 💡 Forzamos la configuración de la gema para testing
   config.before(:suite) do
     DataDrain.configure do |c|

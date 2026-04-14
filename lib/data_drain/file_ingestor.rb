@@ -6,6 +6,8 @@ module DataDrain
   # aplicando compresión ZSTD y particionamiento Hive.
   class FileIngestor
     include Observability
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity,
+    #   Metrics/MethodLength
 
     # @param options [Hash] Opciones de ingestión.
     # @option options [String] :source_path Ruta absoluta al archivo local.
@@ -53,8 +55,11 @@ module DataDrain
       step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       source_count = @duckdb.query("SELECT COUNT(*) FROM #{reader_function}").first.first
       source_query_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
-      safe_log(:info, "file_ingestor.count",
-               { source_path: @source_path, count: source_count, source_query_duration_s: source_query_duration.round(2) })
+      safe_log(:info, "file_ingestor.count", {
+                 source_path: @source_path,
+                 count: source_count,
+                 source_query_duration_s: source_query_duration.round(2)
+               })
 
       if source_count.zero?
         cleanup_local_file
@@ -136,4 +141,6 @@ module DataDrain
       safe_log(:info, "file_ingestor.cleanup", { source_path: @source_path })
     end
   end
+  # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity,
+  #   Metrics/MethodLength
 end

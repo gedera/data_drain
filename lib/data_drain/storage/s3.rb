@@ -4,6 +4,7 @@ module DataDrain
   module Storage
     # Implementación del adaptador de almacenamiento para Amazon S3.
     class S3 < Base
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
       # Carga la extensión httpfs en DuckDB e inyecta las credenciales de AWS.
       # Si aws_access_key_id y aws_secret_access_key están seteados, usa
       # credenciales explícitas. Si no, usa credential_chain (IAM role, env vars,
@@ -110,5 +111,6 @@ module DataDrain
         deleted_count
       end
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
   end
 end

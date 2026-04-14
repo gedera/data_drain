@@ -61,6 +61,76 @@ RSpec.describe DataDrain::Engine do
     end
   end
 
+  it "skip export y purge cuando pg_count es 0" do
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres/)
+    allow(mock_duckdb).to receive(:query).with(/SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[0]])
+
+    expect(engine.call).to be true
+  end
+
+  it "skip_export omite export_to_parquet pero ejecuta verify_integrity" do
+    engine = described_class.new(base_options.merge(table_name: "versions", skip_export: true))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+    allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0)
+    expect(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).twice.and_return(mock_pg_result)
+
+    expect(engine.call).to be true
+  end
+
+  it "setea idle_in_transaction_session_timeout = 0" do
+    engine = described_class.new(base_options.merge(table_name: "versions"))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    expect(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout = 0;/)
+    allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0)
+    expect(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).twice.and_return(mock_pg_result)
+
+    engine.call
+  end
+
+  it "no setea idle_in_transaction_session_timeout cuando es nil" do
+    DataDrain.configure { |c| c.idle_in_transaction_session_timeout = nil }
+    engine = described_class.new(base_options.merge(table_name: "versions"))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    expect(mock_pg_conn).not_to receive(:exec).with(/idle_in_transaction_session_timeout/)
+    allow(mock_pg_result).to receive(:cmd_tuples).and_return(0)
+    allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+    engine.call
+  ensure
+    DataDrain.reset_configuration!
+  end
+
+  it "loop de purge termina cuando cmd_tuples devuelve 0" do
+    engine = described_class.new(base_options.merge(table_name: "versions"))
+    allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+    allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+    allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+    allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+    allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+    allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+    values = [1, 1, 0]
+    call_count = 0
+    allow(mock_pg_result).to receive(:cmd_tuples) do
+      call_count += 1
+      values[call_count - 1]
+    end
+
+    engine.call
+
+    expect(call_count).to eq(3)
+  end
+
   it "ejecuta el flujo ETL completo si la integridad es exitosa" do
     # 1. Setup
     expect(mock_duckdb).to receive(:query).with(/INSTALL postgres/).ordered

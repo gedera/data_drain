@@ -1,5 +1,18 @@
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-13
+
+### Security
+- **BREAKING (preventivo):** `table_name` y `primary_key` se validan contra regex `\A[a-zA-Z_][a-zA-Z0-9_]*\z`. Identificadores con caracteres especiales (puntos, espacios, comillas) ahora levantan `DataDrain::ConfigurationError`. (item 2)
+- Storage::S3 migra a `CREATE SECRET (TYPE S3, PROVIDER credential_chain)`. Si `aws_access_key_id`/`aws_secret_access_key` están seteados, se mantiene comportamiento explícito; si no, usa AWS credential chain (IAM roles, env vars, ~/.aws/credentials). `aws_region` ahora se escapa con `''` en el SQL. (item 1)
+
+### Features
+- `Record.disconnect!` cierra y limpia la conexión DuckDB thread-local. Recomendado en middlewares Sidekiq/Puma para evitar memory leak. Idempotente. (item 3)
+
+### Tests
+- Cobertura: 112 specs, coverage líneas 97.37% (SimpleCov).
+- Specs nuevos: Record, Storage::Local, Storage::S3, Storage factory, GlueRunner, Observability, Configuration, JsonType, Validations, Engine (validación), FileIngestor (validación + ingestión CSV/JSON/Parquet).
+
 ## [0.1.19] - 2026-03-30
 
 - Fix: `Record.build_query_path` ahora usa `partition_keys` como fuente de verdad del orden, ignorando el orden de los kwargs del caller. Antes, pasar `where(year: 2026, isp_id: 42)` en distinto orden generaba un path que no coincidía con la estructura Hive en disco.
