@@ -7,6 +7,8 @@ module DataDrain
   # Este módulo es genérico y puede ser utilizado en otras gemas.
   # @api private
   module Observability
+    SENSITIVE_KEY_PATTERN = /password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i
+
     private
 
     # Emite un log estructurado de forma segura.
@@ -19,7 +21,7 @@ module DataDrain
 
       # Enmascaramiento preventivo de secretos (Security)
       log_line = fields.map do |k, v|
-        val = %i[password token secret api_key auth].include?(k.to_sym) ? "[FILTERED]" : v
+        val = SENSITIVE_KEY_PATTERN.match?(k.to_s) ? "[FILTERED]" : v
         "#{k}=#{val}"
       end.join(" ")
 

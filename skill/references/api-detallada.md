@@ -220,7 +220,7 @@ Diseñado para `include` (instance methods, requiere `@logger`) o `extend` (clas
 ### `#safe_log(level, event, metadata = {})` (privado)
 - Si `@logger` es nil, no-op.
 - Construye `fields = { component: observability_name, event: event }.merge(metadata)`.
-- Filtra valores cuyas keys sean `:password|:token|:secret|:api_key|:auth` → `[FILTERED]`.
+- Filtra valores cuyas keys matcheen `SENSITIVE_KEY_PATTERN = /password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i` → `[FILTERED]`. Aplica a claves exactas (`password`) y variantes (`db_password`, `aws_secret_access_key`, `bearer_token`, etc.).
 - Emite `@logger.send(level) { "k1=v1 k2=v2 ..." }`.
 - `rescue StandardError` silencioso (resilience).
 

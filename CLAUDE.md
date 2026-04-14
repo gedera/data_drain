@@ -59,7 +59,7 @@ La telemetría debe ser estructurada (KV) para ser procesada por `exis_ray`.
 - **Automatización:** El campo `source` lo inyecta automáticamente `exis_ray` — no incluirlo manualmente.
 - **DEBUG:** Siempre en forma de bloque: `logger.debug { "k=#{v}" }`.
 - **Duraciones:** Usar siempre `Process.clock_gettime(Process::CLOCK_MONOTONIC)`.
-- **Sensibilidad:** Filtrar datos sensibles (`password`, `token`, `secret`) → `[FILTERED]`.
+- **Sensibilidad:** `Observability#safe_log` filtra claves con regex `/password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i` → `[FILTERED]`.
 
 ## Código Ruby
 
