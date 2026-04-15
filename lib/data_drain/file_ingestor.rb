@@ -82,7 +82,7 @@ module DataDrain
 
     # @api private
     def step_count_source
-      source_count = timed(:source_query) { @duckdb.query("SELECT count() FROM #{@reader_function}").first.first }
+      source_count = timed(:source_query) { @duckdb.query("SELECT COUNT(*) FROM #{@reader_function}").first.first }
       safe_log(:info, "file_ingestor.count", {
                  source_path: @source_path,
                  count: source_count,

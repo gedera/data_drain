@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-15
+
+### Regresiónfix (desde v0.3.1)
+
+- `COUNT(*)` → `count()` (item 16 de v0.3.1) era incorrecto. `count()` sin argumentos es SQL inválido en Postgres. Se revierte a `COUNT(*)` en `Engine#get_postgres_count`, `Engine#verify_integrity` y `FileIngestor#step_count_source`. Ver [#10](https://github.com/gedera/data_drain/pull/10).
+
 ## [0.3.1] - 2026-04-15
 
 ### BREAKING (preventivo)
