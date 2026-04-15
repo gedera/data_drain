@@ -257,4 +257,63 @@ RSpec.describe DataDrain::Engine do
       DataDrain.reset_configuration!
     end
   end
+
+  describe "warning de purga lenta" do
+    it "handle_batch_timing emite slow_batch cuando batch excede threshold" do
+      DataDrain.configure do |c|
+        c.slow_batch_threshold_s = 5
+        c.slow_batch_alert_after = 3
+      end
+      engine = described_class.new(base_options.merge(table_name: "versions"))
+
+      allow(engine).to receive(:safe_log).with(:warn, "engine.slow_batch", anything).and_call_original
+      expect(engine).to receive(:safe_log).with(:warn, "engine.slow_batch",
+                                                hash_including(batch_duration_s: a_value > 5, streak: 1))
+
+      engine.send(:handle_batch_timing, 10.0, 100, 0)
+    ensure
+      DataDrain.reset_configuration!
+    end
+
+    it "handle_batch_timing emite purge_degraded tras N lotes lentos consecutivos" do
+      DataDrain.configure do |c|
+        c.slow_batch_threshold_s = 5
+        c.slow_batch_alert_after = 3
+      end
+      engine = described_class.new(base_options.merge(table_name: "versions"))
+
+      allow(engine).to receive(:safe_log).and_call_original
+      expect(engine).to receive(:safe_log).with(:warn, "engine.purge_degraded", anything).once
+
+      streak = 0
+      3.times do
+        streak = engine.send(:handle_batch_timing, 10.0, 100, streak)
+      end
+    ensure
+      DataDrain.reset_configuration!
+    end
+
+    it "resetea streak si un lote es rápido" do
+      DataDrain.configure do |c|
+        c.slow_batch_threshold_s = 5
+        c.slow_batch_alert_after = 3
+      end
+      engine = described_class.new(base_options.merge(table_name: "versions"))
+
+      allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+      allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+      allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+      allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+      allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+
+      allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0)
+      allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+      expect(DataDrain.configuration.logger).not_to receive(:warn).with(/engine.purge_degraded/)
+
+      engine.call
+    ensure
+      DataDrain.reset_configuration!
+    end
+  end
 end

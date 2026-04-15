@@ -290,20 +290,50 @@ module DataDrain
     def purge_loop(conn)
       batches_processed = 0
       total_deleted = 0
+      slow_batch_streak = 0
 
       loop do
+        batch_start = monotonic
         result = conn.exec(build_delete_sql)
+        batch_duration = monotonic - batch_start
         count = result.cmd_tuples
         break if count.zero?
 
         batches_processed += 1
         total_deleted += count
 
+        slow_batch_streak = handle_batch_timing(batch_duration, count, slow_batch_streak)
         emit_heartbeat_if_due(batches_processed, total_deleted)
+
         sleep(@config.throttle_delay) if @config.throttle_delay.positive?
       end
 
       total_deleted
+    end
+
+    # @api private
+    def handle_batch_timing(batch_duration, count, streak)
+      if batch_duration > @config.slow_batch_threshold_s
+        streak += 1
+        safe_log(:warn, "engine.slow_batch", {
+                   table: @table_name,
+                   batch_duration_s: batch_duration.round(2),
+                   batch_size: count,
+                   streak: streak,
+                   threshold_s: @config.slow_batch_threshold_s
+                 })
+
+        if streak == @config.slow_batch_alert_after
+          safe_log(:warn, "engine.purge_degraded", {
+                     table: @table_name,
+                     consecutive_slow_batches: streak,
+                     hint: "considerar índice composite o particionamiento (ver postgres-tuning.md)"
+                   })
+        end
+        streak
+      else
+        0
+      end
     end
 
     # @api private

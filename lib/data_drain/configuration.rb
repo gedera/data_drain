@@ -10,7 +10,9 @@ module DataDrain
                   :db_host, :db_port, :db_user, :db_pass, :db_name,
                   :batch_size, :throttle_delay, :logger, :limit_ram, :tmp_directory,
                   :idle_in_transaction_session_timeout,
-                  :vacuum_after_purge
+                  :vacuum_after_purge,
+                  :slow_batch_threshold_s,
+                  :slow_batch_alert_after
 
     def initialize
       @storage_mode   = :local
@@ -22,6 +24,8 @@ module DataDrain
       @tmp_directory  = nil # eg /tmp/duckdb_work
       @idle_in_transaction_session_timeout = 0
       @vacuum_after_purge = false
+      @slow_batch_threshold_s = 30
+      @slow_batch_alert_after = 5
       @logger = Logger.new($stdout)
     end
 
