@@ -19,10 +19,174 @@ module DataDrain
     # @return [Boolean] true si el Job terminó exitosamente (SUCCEEDED).
     # @raise [DataDrain::Error] si max_wait_seconds excede antes de SUCCEEDED.
     # @raise [RuntimeError] si el Job falla o se detiene.
+    def self.client
+      @client ||= Aws::Glue::Client.new(region: DataDrain.configuration.aws_region)
+    end
+
+    class << self
+      attr_writer :client
+    end
+
+    def self.job_exists?(job_name)
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      get_job(job_name)
+      true
+    rescue Aws::Glue::Errors::EntityNotFoundException
+      false
+    end
+
+    def self.get_job(job_name)
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      client.get_job(job_name: job_name).job
+    end
+
+    def self.create_job(job_name, role_arn:, script_location:, command_name: "glueetl",
+                        default_arguments: {}, description: nil, worker_type: nil, number_of_workers: nil,
+                        timeout: 2880, max_retries: 0, allocated_capacity: nil, glue_version: nil)
+      @logger = DataDrain.configuration.logger
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      opts = {
+        name: job_name,
+        role: role_arn,
+        command: {
+          name: command_name,
+          python_version: "3",
+          script_location: script_location
+        }
+      }
+      opts[:default_arguments] = default_arguments unless default_arguments.empty?
+      opts[:description] = description if description
+      opts[:timeout] = timeout if timeout
+      opts[:max_retries] = max_retries if max_retries
+      opts[:allocated_capacity] = allocated_capacity if allocated_capacity
+      opts[:worker_type] = worker_type if worker_type
+      opts[:number_of_workers] = number_of_workers if number_of_workers
+      opts[:glue_version] = glue_version if glue_version
+
+      client.create_job(**opts)
+      safe_log(:info, "glue_runner.job_create", {
+                 job: job_name,
+                 glue_version: glue_version,
+                 worker_type: worker_type,
+                 number_of_workers: number_of_workers
+               })
+      get_job(job_name)
+    rescue Aws::Glue::Errors::ServiceError => e
+      safe_log(:error, "glue_runner.job_create_error",
+               { job: job_name }.merge(exception_metadata(e)))
+      raise
+    end
+
+    def self.update_job(job_name, role_arn: nil, command_name: nil, script_location: nil,
+                        default_arguments: nil, description: nil, worker_type: nil,
+                        number_of_workers: nil, timeout: nil, max_retries: nil, allocated_capacity: nil,
+                        glue_version: nil)
+      @logger = DataDrain.configuration.logger
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      job_update = {}
+      job_update[:role] = role_arn if role_arn
+      if command_name && script_location
+        job_update[:command] =
+          { name: command_name, python_version: "3", script_location: script_location }
+      end
+      job_update[:default_arguments] = default_arguments if default_arguments
+      job_update[:description] = description if description
+      job_update[:timeout] = timeout if timeout
+      job_update[:max_retries] = max_retries if max_retries
+      job_update[:allocated_capacity] = allocated_capacity if allocated_capacity
+      job_update[:worker_type] = worker_type if worker_type
+      job_update[:number_of_workers] = number_of_workers if number_of_workers
+      job_update[:glue_version] = glue_version if glue_version
+
+      client.update_job(job_name: job_name, job_update: job_update)
+      safe_log(:info, "glue_runner.job_update", {
+                 job: job_name,
+                 changed_fields: job_update.keys.map(&:to_s)
+               })
+      get_job(job_name)
+    rescue Aws::Glue::Errors::ServiceError => e
+      safe_log(:error, "glue_runner.job_update_error",
+               { job: job_name }.merge(exception_metadata(e)))
+      raise
+    end
+
+    def self.delete_job(job_name)
+      @logger = DataDrain.configuration.logger
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      client.delete_job(job_name: job_name)
+      safe_log(:info, "glue_runner.job_delete", { job: job_name })
+      true
+    rescue Aws::Glue::Errors::EntityNotFoundException
+      safe_log(:info, "glue_runner.job_delete_skipped", { job: job_name, reason: "not_found" })
+      false
+    rescue Aws::Glue::Errors::ServiceError => e
+      safe_log(:error, "glue_runner.job_delete_error",
+               { job: job_name }.merge(exception_metadata(e)))
+      raise
+    end
+
+    def self.ensure_job(job_name, role_arn:, script_location:, command_name: "glueetl",
+                        default_arguments: {}, description: nil, worker_type: nil,
+                        number_of_workers: nil, timeout: 2880, max_retries: 0,
+                        allocated_capacity: nil, glue_version: nil)
+      @logger = DataDrain.configuration.logger
+      if job_exists?(job_name)
+        current = get_job(job_name)
+        desired = {
+          role: role_arn,
+          command_name: command_name,
+          script_location: script_location,
+          default_arguments: default_arguments,
+          description: description,
+          worker_type: worker_type,
+          number_of_workers: number_of_workers,
+          timeout: timeout,
+          max_retries: max_retries,
+          glue_version: glue_version
+        }
+        changed = changed_fields(desired, current)
+        if changed.empty?
+          safe_log(:info, "glue_runner.job_unchanged", { job: job_name })
+          current
+        else
+          safe_log(:info, "glue_runner.job_exists", { job: job_name })
+          update_job(job_name, role_arn: role_arn, command_name: command_name,
+                               script_location: script_location, default_arguments: default_arguments,
+                               description: description, worker_type: worker_type,
+                               number_of_workers: number_of_workers, timeout: timeout,
+                               max_retries: max_retries, allocated_capacity: allocated_capacity,
+                               glue_version: glue_version)
+        end
+      else
+        safe_log(:info, "glue_runner.job_created", { job: job_name })
+        create_job(job_name, role_arn: role_arn, script_location: script_location,
+                             command_name: command_name, default_arguments: default_arguments,
+                             description: description, worker_type: worker_type,
+                             number_of_workers: number_of_workers, timeout: timeout,
+                             max_retries: max_retries, allocated_capacity: allocated_capacity,
+                             glue_version: glue_version)
+      end
+    end
+
+    def self.changed_fields(desired, current)
+      changed = []
+      changed << :role if current.role != desired[:role]
+      changed << :command if current.command.name != desired[:command_name] ||
+                             current.command.script_location != desired[:script_location]
+      changed << :default_arguments if current.default_arguments != desired[:default_arguments]
+      changed << :description if current.description != desired[:description]
+      changed << :worker_type if current.worker_type != desired[:worker_type]
+      changed << :number_of_workers if current.number_of_workers != desired[:number_of_workers]
+      changed << :timeout if current.timeout != desired[:timeout]
+      changed << :max_retries if current.max_retries != desired[:max_retries]
+      changed << :glue_version if current.glue_version != desired[:glue_version]
+      changed
+    end
+    private_class_method :changed_fields
+
     def self.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil)
       config = DataDrain.configuration
       config.validate!
-      client = Aws::Glue::Client.new(region: config.aws_region)
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
       @logger = config.logger

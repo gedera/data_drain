@@ -1,5 +1,30 @@
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-15
+
+### Features
+
+- `GlueRunner.job_exists?(job_name)`: verifica si un job existe. Retorna `true`/`false`. (item 35)
+- `GlueRunner.get_job(job_name)`: obtiene la configuración completa de un job. Retorna `Aws::Glue::Types::Job`. (item 35)
+- `GlueRunner.create_job(job_name, role_arn:, script_location:, ...)`: crea un job con configuración completa. Retorna el job creado. (item 32)
+- `GlueRunner.update_job(job_name, ...)`: actualiza un job existente. Retorna el job actualizado. (item 33)
+- `GlueRunner.delete_job(job_name)`: elimina un job. Retorna `nil`. (item 34)
+- `GlueRunner.ensure_job(job_name, ...)`: upsert idempotente — crea si no existe, actualiza si existe. (item 36)
+
+### Validations
+
+- `DataDrain::Validations.validate_glue_name!`: validación específica para nombres de Glue Jobs (letras, números, guiones; no permite guiones bajos ni espacios).
+
+### Tests
+
+- 163 specs, coverage 97.39%.
+
+### Docs
+
+- `docs/glue-jobs-lifecycle.md`: referencia completa de la API de Glue Jobs.
+- README.md actualizado con ejemplos de todos los métodos.
+- `skill/references/eventos-telemetria.md`: nuevos eventos `glue_runner.job_exists` y `glue_runner.job_created`.
+
 ## [0.3.2] - 2026-04-15
 
 ### Regresiónfix (desde v0.3.1)

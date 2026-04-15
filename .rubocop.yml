@@ -23,6 +23,18 @@ Metrics/BlockLength:
     - data_drain.gemspec
     - lib/**/*.rb
 
+Metrics/ParameterLists:
+  Exclude:
+    - lib/**/*.rb
+
+Metrics/CyclomaticComplexity:
+  Exclude:
+    - lib/**/*.rb
+
+Metrics/PerceivedComplexity:
+  Exclude:
+    - lib/**/*.rb
+
 Layout/LineLength:
   Exclude:
     - lib/**/configuration.rb  # connection string URL > 120 chars

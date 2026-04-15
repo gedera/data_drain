@@ -13,6 +13,7 @@ RSpec.describe DataDrain::GlueRunner do
   before do
     allow(DataDrain).to receive(:configuration).and_return(config)
     allow(Aws::Glue::Client).to receive(:new).and_return(glue_client)
+    described_class.client = glue_client
   end
 
   describe ".run_and_wait" do
@@ -107,6 +108,269 @@ RSpec.describe DataDrain::GlueRunner do
                                  })
 
       expect { described_class.run_and_wait("ok-job") }.not_to raise_error
+    end
+  end
+
+  describe ".get_job" do
+    it "retorna el Job object cuando existe" do
+      glue_client.stub_responses(:get_job, {
+                                   job: {
+                                     name: "my-job",
+                                     role: "GlueServiceRole",
+                                     command: { name: "glueetl", python_version: "3",
+                                                script_location: "s3://bucket/script.py" }
+                                   }
+                                 })
+
+      job = described_class.get_job("my-job")
+      expect(job.name).to eq "my-job"
+      expect(job.role).to eq "GlueServiceRole"
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.get_job("invalid name!") }.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".job_exists?" do
+    it "retorna true cuando el job existe" do
+      glue_client.stub_responses(:get_job, {
+                                   job: { name: "my-job" }
+                                 })
+
+      expect(described_class.job_exists?("my-job")).to be true
+    end
+
+    it "retorna false cuando el job no existe" do
+      glue_client.stub_responses(:get_job, Aws::Glue::Errors::EntityNotFoundException.new(nil, "not found"))
+
+      expect(described_class.job_exists?("nonexistent-job")).to be false
+    end
+
+    it "propaga errores que no sean EntityNotFoundException" do
+      glue_client.stub_responses(:get_job, Aws::Glue::Errors::ValidationException.new(nil, "validation error"))
+
+      expect { described_class.job_exists?("my-job") }.to raise_error(Aws::Glue::Errors::ValidationException)
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.job_exists?("invalid name!") }.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".create_job" do
+    it "crea el job y retorna el job object" do
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:get_job, {
+                                   job: { name: "new-job", role: "arn:aws:iam::123:role/GlueRole" }
+                                 })
+
+      job = described_class.create_job(
+        "new-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_location: "s3://bucket/script.py"
+      )
+      expect(job.name).to eq "new-job"
+    end
+
+    it "solo incluye opts no-nil en la llamada a create_job" do
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:get_job, { job: { name: "my-job", max_retries: 2 } })
+
+      expect do
+        described_class.create_job(
+          "my-job",
+          role_arn: "arn:aws:iam::123:role/GlueRole",
+          script_location: "s3://bucket/script.py",
+          max_retries: 2,
+          description: "test"
+        )
+      end.not_to raise_error
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect do
+        described_class.create_job("invalid!", role_arn: "arn:aws:iam::123:role/GlueRole",
+                                               script_location: "s3://bucket/script.py")
+      end.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".update_job" do
+    it "actualiza el job y retorna el job actualizado" do
+      glue_client.stub_responses(:update_job, {})
+      glue_client.stub_responses(:get_job, {
+                                   job: { name: "my-job", description: "updated description" }
+                                 })
+
+      job = described_class.update_job("my-job", description: "updated description")
+      expect(job.description).to eq "updated description"
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.update_job("invalid!") }.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".delete_job" do
+    it "elimina el job y retorna true" do
+      glue_client.stub_responses(:delete_job, {})
+
+      result = described_class.delete_job("my-job")
+      expect(result).to be true
+    end
+
+    it "es idempotente — retorna false si no existe" do
+      glue_client.stub_responses(:delete_job, Aws::Glue::Errors::EntityNotFoundException.new(nil, "not found"))
+
+      result = described_class.delete_job("nonexistent")
+      expect(result).to be false
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.delete_job("invalid!") }.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".ensure_job" do
+    it "crea el job cuando no existe" do
+      glue_client.stub_responses(:get_job, Aws::Glue::Errors::EntityNotFoundException.new(nil, "not found"))
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:get_job, {
+                                   job: {
+                                     name: "my-job",
+                                     role: "arn:aws:iam::123:role/GlueRole",
+                                     command: { name: "glueetl", script_location: "s3://bucket/script.py" }
+                                   }
+                                 })
+
+      job = described_class.ensure_job(
+        "my-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_location: "s3://bucket/script.py"
+      )
+      expect(job.name).to eq "my-job"
+    end
+
+    it "actualiza el job cuando ya existe con config diferente" do
+      glue_client.stub_responses(:get_job, [
+                                   {
+                                     job: {
+                                       name: "existing-job",
+                                       role: "old-role",
+                                       command: { name: "glueetl", script_location: "s3://bucket/script.py" },
+                                       default_arguments: {}, timeout: 2880, max_retries: 0
+                                     }
+                                   },
+                                   { job: { name: "existing-job", role: "new-role",
+                                            command: { name: "glueetl",
+                                                       script_location: "s3://bucket/script.py" },
+                                            default_arguments: {}, timeout: 2880, max_retries: 0 } }
+                                 ])
+      glue_client.stub_responses(:update_job, {})
+
+      job = described_class.ensure_job(
+        "existing-job",
+        role_arn: "new-role",
+        script_location: "s3://bucket/script.py"
+      )
+      expect(job.role).to eq "new-role"
+    end
+
+    it "retorna el job sin update si la config ya coincide (unchanged)" do
+      glue_client.stub_responses(:get_job, {
+                                   job: {
+                                     name: "my-job",
+                                     role: "arn:aws:iam::123:role/GlueRole",
+                                     command: { name: "glueetl", python_version: "3",
+                                                script_location: "s3://bucket/script.py" },
+                                     default_arguments: {},
+                                     description: nil,
+                                     worker_type: nil,
+                                     number_of_workers: nil,
+                                     timeout: 2880,
+                                     max_retries: 0,
+                                     glue_version: nil
+                                   }
+                                 })
+
+      job = described_class.ensure_job(
+        "my-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_location: "s3://bucket/script.py"
+      )
+      expect(job.name).to eq "my-job"
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect do
+        described_class.ensure_job("invalid!", role_arn: "arn:aws:iam::123:role/GlueRole",
+                                               script_location: "s3://bucket/script.py")
+      end.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".changed_fields" do
+    let(:current_role) { "arn:aws:iam::123:role/GlueRole" }
+    let(:current_command) do
+      Struct.new(:name, :script_location).new("glueetl", "s3://bucket/script.py")
+    end
+    let(:current) do
+      Struct.new(:role, :command, :default_arguments, :description, :worker_type,
+                 :number_of_workers, :timeout, :max_retries, :glue_version).new(
+                   current_role, current_command, {}, nil, nil, nil, 2880, 0, nil
+                 )
+    end
+
+    it "detecta role cambiado" do
+      desired = {
+        role: "arn:aws:iam::456:role/NewRole",
+        command_name: "glueetl",
+        script_location: "s3://bucket/script.py",
+        default_arguments: {},
+        description: nil,
+        worker_type: nil,
+        number_of_workers: nil,
+        timeout: 2880,
+        max_retries: 0,
+        glue_version: nil
+      }
+      changed = described_class.send(:changed_fields, desired, current)
+      expect(changed).to include(:role)
+    end
+
+    it "detecta script_location cambiado" do
+      desired = {
+        role: "arn:aws:iam::123:role/GlueRole",
+        command_name: "glueetl",
+        script_location: "s3://bucket/new-script.py",
+        default_arguments: {},
+        description: nil,
+        worker_type: nil,
+        number_of_workers: nil,
+        timeout: 2880,
+        max_retries: 0,
+        glue_version: nil
+      }
+      changed = described_class.send(:changed_fields, desired, current)
+      expect(changed).to include(:command)
+    end
+
+    it "retorna vacío cuando todo coincide" do
+      desired = {
+        role: "arn:aws:iam::123:role/GlueRole",
+        command_name: "glueetl",
+        script_location: "s3://bucket/script.py",
+        default_arguments: {},
+        description: nil,
+        worker_type: nil,
+        number_of_workers: nil,
+        timeout: 2880,
+        max_retries: 0,
+        glue_version: nil
+      }
+      changed = described_class.send(:changed_fields, desired, current)
+      expect(changed).to be_empty
     end
   end
 end

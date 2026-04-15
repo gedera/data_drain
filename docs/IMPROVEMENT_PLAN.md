@@ -1521,3 +1521,117 @@ El workflow actual usa `bundler-cache: false`. Habilitar `bundler-cache: true` j
 ```
 
 **Riesgo:** Requiere que el step "Download DuckDB library" corra antes de bundle install para que Bundler cachee correctamente los gems compilados.
+
+---
+
+### Item 32 — Glue Jobs Lifecycle: create/update/delete atómicos
+
+**Estado:** `[x]`
+**Prioridad:** P2
+**Tipo:** `feat`
+**Estimación:** M
+**Release sugerido:** v0.4.0
+
+##### Contexto
+
+`GlueRunner.run_and_wait` solo ejecuta jobs pre-existentes. Para automatizar el ciclo de vida completo (infra-as-code), se agregan métodos para crear, actualizar y eliminar jobs.
+
+##### Cambios
+
+1. `GlueRunner.create_job(job_name, role_arn:, script_location:, ...)` — crea un Glue Job con defaults razonables. Retorna `Aws::Glue::Types::Job`.
+2. `GlueRunner.update_job(job_name, ...)` — actualiza un job existente. Retorna el job actualizado.
+3. `GlueRunner.delete_job(job_name)` — elimina un job. Retorna `nil`.
+
+##### Criterios de aceptación
+
+- [x] `create_job` retorna el job object creado.
+- [x] `update_job` falla con EntityNotFoundException si no existe.
+- [x] `delete_job` retorna nil.
+- [x] `validate_glue_name!` permite guiones en nombres (regex `[a-zA-Z0-9-]`).
+
+---
+
+### Item 33 — `ensure_job` idempotente
+
+**Estado:** `[x]`
+**Prioridad:** P2
+**Tipo:** `feat`
+**Estimación:** M
+**Release sugerido:** v0.4.0
+
+##### Contexto
+
+Wrapper idempotente que garantiza un job existe con la config deseada: lo crea si no existe, lo actualiza si difiere.
+
+##### Cambios
+
+```ruby
+DataDrain::GlueRunner.ensure_job("my-job", role_arn: "...", script_location: "...")
+# => Aws::Glue::Types::Job
+```
+
+##### Criterios de aceptación
+
+- [x] Crea el job si no existe.
+- [x] Actualiza el job si ya existe.
+- [x] Emite `glue_runner.job_created` / `glue_runner.job_exists`.
+
+---
+
+### Item 34 — Helpers consultivos: `job_exists?` + `get_job`
+
+**Estado:** `[x]`
+**Prioridad:** P2
+**Tipo:** `feat`
+**Estimación:** S
+**Release sugerido:** v0.4.0
+
+##### Contexto
+
+Foundation para items 32 y 33. `get_job` retorna el Job object; `job_exists?` es boolean.
+
+##### Criterios de aceptación
+
+- [x] `get_job` retorna `Aws::Glue::Types::Job`.
+- [x] `job_exists?` retorna boolean.
+- [x] EntityNotFoundException → false (no propaga en `job_exists?`).
+
+---
+
+### Item 35 — Tests consolidación Glue Jobs
+
+**Estado:** `[x]`
+**Prioridad:** P2
+**Tipo:** `test`
+**Estimación:** M
+**Release sugerido:** v0.4.0
+
+##### Contexto
+
+Suite de tests con `Aws::Glue::Client.stub_responses` para los 5 nuevos métodos. Coverage ≥ 90%.
+
+##### Criterios de aceptación
+
+- [ ] Tests para todos los nuevos métodos.
+- [ ] Edge cases: `default_arguments` hash equality, Symbol vs String keys.
+- [ ] Coverage ≥ 90%.
+
+---
+
+### Item 36 — Docs: `glue-jobs-lifecycle.md`
+
+**Estado:** `[x]`
+**Prioridad:** P2
+**Tipo:** `docs`
+**Estimación:** S
+**Release sugerido:** v0.4.0
+
+##### Contexto
+
+Documentación del nuevo feature: pre-requisitos IAM, API de cada método, eventos de telemetría, limitaciones, patrón completo ensure+run.
+
+##### Criterios de aceptación
+
+- [x] `docs/glue-jobs-lifecycle.md` creado.
+- [x] README actualizado con ejemplo.
+- [x] Eventos catalogados en `eventos-telemetria.md`.
