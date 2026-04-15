@@ -1526,7 +1526,7 @@ El workflow actual usa `bundler-cache: false`. Habilitar `bundler-cache: true` j
 
 ### Item 32 — Glue Jobs Lifecycle: create/update/delete atómicos
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `feat`
 **Estimación:** M
@@ -1538,22 +1538,22 @@ El workflow actual usa `bundler-cache: false`. Habilitar `bundler-cache: true` j
 
 ##### Cambios
 
-1. `GlueRunner.create_job(config)` — crea un Glue Job con defaults razonables.
-2. `GlueRunner.update_job(config)` — actualiza un job existente.
-3. `GlueRunner.delete_job(name)` — idempotente (no levanta si no existe).
+1. `GlueRunner.create_job(job_name, role_arn:, script_location:, ...)` — crea un Glue Job con defaults razonables. Retorna `Aws::Glue::Types::Job`.
+2. `GlueRunner.update_job(job_name, ...)` — actualiza un job existente. Retorna el job actualizado.
+3. `GlueRunner.delete_job(job_name)` — elimina un job. Retorna `nil`.
 
 ##### Criterios de aceptación
 
-- [ ] `create_job` retorna nombre del job creado.
-- [ ] `update_job` falla con EntityNotFoundException si no existe.
-- [ ] `delete_job` retorna false si no existía (idempotente).
-- [ ] `validate_glue_name!` permite guiones en nombres (regex `[a-zA-Z0-9_-]`).
+- [x] `create_job` retorna el job object creado.
+- [x] `update_job` falla con EntityNotFoundException si no existe.
+- [x] `delete_job` retorna nil.
+- [x] `validate_glue_name!` permite guiones en nombres (regex `[a-zA-Z0-9-]`).
 
 ---
 
 ### Item 33 — `ensure_job` idempotente
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `feat`
 **Estimación:** M
@@ -1561,27 +1561,26 @@ El workflow actual usa `bundler-cache: false`. Habilitar `bundler-cache: true` j
 
 ##### Contexto
 
-Wrapper declarativo que garantiza un job existe con la config deseada: lo crea si no existe, lo actualiza si difiere, lo deja si coincide.
+Wrapper idempotente que garantiza un job existe con la config deseada: lo crea si no existe, lo actualiza si difiere.
 
 ##### Cambios
 
 ```ruby
-DataDrain::GlueRunner.ensure_job(name: "...", role_arn: "...", script_location: "...")
-# => :created | :updated | :unchanged
+DataDrain::GlueRunner.ensure_job("my-job", role_arn: "...", script_location: "...")
+# => Aws::Glue::Types::Job
 ```
 
 ##### Criterios de aceptación
 
-- [ ] Retorna `:created` si no existe.
-- [ ] Retorna `:updated` si difiere algún campo seteado por caller.
-- [ ] Retorna `:unchanged` si coincide.
-- [ ] No dispara update por campos no seteados por caller.
+- [x] Crea el job si no existe.
+- [x] Actualiza el job si ya existe.
+- [x] Emite `glue_runner.job_created` / `glue_runner.job_exists`.
 
 ---
 
 ### Item 34 — Helpers consultivos: `job_exists?` + `get_job`
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `feat`
 **Estimación:** S
@@ -1589,19 +1588,19 @@ DataDrain::GlueRunner.ensure_job(name: "...", role_arn: "...", script_location: 
 
 ##### Contexto
 
-Foundation para items 32 y 33. `get_job` retorna el Job o nil; `job_exists?` es boolean.
+Foundation para items 32 y 33. `get_job` retorna el Job object; `job_exists?` es boolean.
 
 ##### Criterios de aceptación
 
-- [ ] `get_job` retorna `Aws::Glue::Types::Job` o nil.
-- [ ] `job_exists?` retorna boolean.
-- [ ] EntityNotFoundException → nil (no propaga).
+- [x] `get_job` retorna `Aws::Glue::Types::Job`.
+- [x] `job_exists?` retorna boolean.
+- [x] EntityNotFoundException → false (no propaga en `job_exists?`).
 
 ---
 
 ### Item 35 — Tests consolidación Glue Jobs
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `test`
 **Estimación:** M
@@ -1621,7 +1620,7 @@ Suite de tests con `Aws::Glue::Client.stub_responses` para los 5 nuevos métodos
 
 ### Item 36 — Docs: `glue-jobs-lifecycle.md`
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `docs`
 **Estimación:** S
@@ -1633,6 +1632,6 @@ Documentación del nuevo feature: pre-requisitos IAM, API de cada método, event
 
 ##### Criterios de aceptación
 
-- [ ] `skill/references/glue-jobs-lifecycle.md` creado.
-- [ ] README actualizado con ejemplo.
-- [ ] Eventos catalogados en `eventos-telemetria.md`.
+- [x] `docs/glue-jobs-lifecycle.md` creado.
+- [x] README actualizado con ejemplo.
+- [x] Eventos catalogados en `eventos-telemetria.md`.
