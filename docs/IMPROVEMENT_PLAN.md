@@ -1,9 +1,9 @@
 # DataDrain — Plan de Mejora v0.2.0 → v0.3.1
 
-**Versión actual:** 0.2.2
-**Última actualización:** 2026-04-14
+**Versión actual:** 0.3.1
+**Última actualización:** 2026-04-15
 **Owner:** Gabriel
-**Estado global:** No iniciado
+**Estado global:** Roadmap original 24/24 completado
 
 Documento de seguimiento para coordinar la evolución de la gema con otros agentes (Claude, Gemini) y revisores humanos. Cada item es autocontenido: contexto, cambios, archivos afectados, criterios de aceptación, riesgos.
 
@@ -25,14 +25,14 @@ Documento de seguimiento para coordinar la evolución de la gema con otros agent
 
 ## Resumen ejecutivo
 
-DataDrain v0.1.19 es una gema bien arquitecturada (Storage Adapter, Observability, thread-local DuckDB) con observabilidad estructurada de clase empresarial. Sin embargo presenta:
+**Roadmap original 24/24 items completados en v0.3.1.** DataDrain cierra el roadmap original con calidad de código, CI completo y DX mejorado.
 
-- **Riesgos de seguridad moderados:** SQL injection en `table_name`/`select_sql`, credenciales S3 interpoladas en queries DuckDB.
-- **Cobertura de tests baja:** solo 4 specs, sin cobertura de Record/Storage/GlueRunner.
-- **Memory leak potencial:** conexión DuckDB thread-local sin cleanup.
-- **Documentación de tuning ausente:** sin guía para purgas masivas, índices, particionamiento.
+El roadmap original cubría:
+- **P0 (v0.2.0):** Hardening de seguridad — SQL injection, credenciales S3, cleanup DuckDB thread-local, cobertura P0.
+- **P1 (v0.2.1 / v0.3.0):** Performance y robustez — VACUUM, slow batch alerts, validation, max_wait_seconds, sandboxing.
+- **P2 (v0.3.1):** Calidad y DX — YARD, RuboCop en specs, matrix Ruby, CI badge, count() friendly SQL, DEBUG docs.
 
-Este plan agrupa 24 items (17 originales + 7 surgidos post v0.2.1) en 5+ releases incrementales (v0.2.0 → v0.3.1) priorizados por impacto.
+Items post-roadmap (25-30) documentados en la sección "Follow-ups".
 
 ---
 
@@ -966,7 +966,7 @@ Hoy `engine.purge_heartbeat` se emite cada 100 lotes, sin importar si los lotes 
 
 #### Item 12 — YARD coverage 50% → 90%
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `docs`
 **Compatibilidad:** N/A
@@ -991,7 +991,7 @@ Documentar con YARD (`@param`, `@return`, `@raise`, `@example`):
 
 #### Item 13 — Extraer `build_path_base` en Storage::Base
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `refactor`
 **Compatibilidad:** backward-compatible
@@ -1027,7 +1027,7 @@ end
 
 #### Item 14 — CI con GitHub Actions
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `chore`
 **Compatibilidad:** N/A
@@ -1052,7 +1052,7 @@ Crear `.github/workflows/ci.yml`:
 
 #### Item 15 — Docs DEBUG en bloque y tuning ejemplos
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `docs`
 **Compatibilidad:** N/A
@@ -1074,7 +1074,7 @@ En `CLAUDE.md` y `skill/SKILL.md`:
 
 #### Item 16 — Adoptar DuckDB Friendly SQL (cosmético)
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `refactor`
 **Compatibilidad:** backward-compatible
@@ -1103,7 +1103,7 @@ Agregados el 2026-04-14 tras review de v0.2.1 y análisis del workaround de CI.
 
 #### Item 17 — Arreglar 48 ofensas RuboCop en `spec/` y re-habilitar en CI
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `chore` `test`
 **Compatibilidad:** N/A
@@ -1136,7 +1136,7 @@ v0.2.1 excluyó `spec/` de RuboCop en `.rubocop.yml` para desbloquear el CI. La 
 
 #### Item 18 — Matrix Ruby en CI (3.2, 3.3, 3.4)
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `chore`
 **Compatibilidad:** N/A
@@ -1172,7 +1172,7 @@ v0.2.1 solo corre CI en Ruby 3.4.4. La gema declara `required_ruby_version = ">=
 
 #### Item 19 — Migrar tests S3 de `stub_const` a `Aws::S3::Client.stub_responses`
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `refactor` `test`
 **Compatibilidad:** N/A
@@ -1251,7 +1251,7 @@ Item 10 del roadmap (refactor `Engine#call` CC=13→5) resolverá parte. Este it
 
 #### Item 22 — Cache de RuboCop en CI
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P3
 **Tipo:** `chore`
 **Compatibilidad:** N/A
@@ -1287,7 +1287,7 @@ En `.github/workflows/main.yml`, agregar step antes de `rubocop`:
 
 #### Item 23 — Coverage ≥ 90% en SimpleCov
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `test`
 **Compatibilidad:** N/A
@@ -1319,7 +1319,7 @@ v0.2.0 dejó `minimum_coverage 80` con cobertura real ~97%. Subir el umbral a 90
 
 #### Item 24 — CI badge en README
 
-**Estado:** `[~]`
+**Estado:** `[x]`
 **Prioridad:** P3
 **Tipo:** `docs`
 **Compatibilidad:** N/A
@@ -1420,3 +1420,104 @@ Cada item puede mapearse 1:1 a:
 - AI report (vía skill `ai-reports`)
 
 Convención sugerida de título: `[DataDrain v0.X.Y] Item N — Resumen corto`.
+
+---
+
+## Follow-ups post-roadmap (v0.4.0+)
+
+Items descubiertos durante v0.3.1 que no entraron en el scope del roadmap original.
+
+---
+
+### Item 25 — `fetch_dead_tuple_count` retorna `-1` en lugar de `nil`
+
+**Estado:** `[ ]`
+**Prioridad:** P3
+**Tipo:** `fix`
+**Estimación:** XS
+
+##### Contexto
+
+`fetch_dead_tuple_count` rescata `PG::Error` y retorna `-1`. Esto se traduce en logs como `dead_tuples_before=-1`. El valor `nil` sería más claro semánticamente (no encontrado vs. error).
+
+---
+
+### Item 26 — Documentar `lock_configuration` + httpfs en skill
+
+**Estado:** `[ ]`
+**Prioridad:** P3
+**Tipo:** `docs`
+**Estimación:** S
+
+##### Contexto
+
+`Record.connection` ejecuta `SET lock_configuration=true` post-setup. No hay documentación de qué implica esto para el usuario de la gema (imposibilidad de cambiar settings, implicaciones con httpfs ya cargado, etc.).
+
+---
+
+### Item 27 — Integration tests con Postgres real en CI
+
+**Estado:** `[ ]`
+**Prioridad:** P2
+**Tipo:** `test`
+**Estimación:** M
+
+##### Contexto
+
+El suite actual usa mocks de PG (`instance_double`). Tests de integración con Postgres real (service container) validarían el comportamiento completo de `purge_from_postgres`, `fetch_dead_tuple_count` y `idle_in_transaction_session_timeout`.
+
+##### Cambios sugeridos
+
+1. Habilitar `postgres` service container en workflow CI.
+2. Crear specs con tag `:integration`.
+3. Correr integration tests en adición al suite default.
+
+---
+
+### Item 28 — `rubocop-rspec` plugin
+
+**Estado:** `[ ]`
+**Prioridad:** P3
+**Tipo:** `chore`
+**Estimación:** S
+
+##### Contexto
+
+El plan v0.3.1 decidió no agregar `rubocop-rspec` para evitar scope creep. Queda pendiente como item post-roadmap si se necesita cobertura RSpec más estricta.
+
+---
+
+### Item 29 — Particionamiento declarativo nativo en Engine
+
+**Estado:** `[ ]`
+**Prioridad:** P1
+**Tipo:** `feat`
+**Estimación:** L
+
+##### Contexto
+
+Cuando `Engine` opera sobre una tabla Postgres particionada y el rango de fechas coincide exactamente con una partición, `DELETE` en lotes es innecesariamente lento. Un `DROP TABLE` es instantáneo. La detección automática y uso de `DROP PARTITION` requiere introspección del schema de Postgres.
+
+---
+
+### Item 30 — Habilitar `bundler-cache: true` en CI
+
+**Estado:** `[ ]`
+**Prioridad:** P3
+**Tipo:** `chore`
+**Estimación:** XS
+
+##### Contexto
+
+El workflow actual usa `bundler-cache: false`. Habilitar `bundler-cache: true` junto con `ruby/setup-ruby@v1` ahorra ~6 minutos por run de la matrix de 3 versiones.
+
+##### Cambios sugeridos
+
+```yaml
+- uses: ruby/setup-ruby@v1
+  with:
+    ruby-version: ${{ matrix.ruby }}
+    bundler-cache: true  # antes: false
+```
+
+**Riesgo:** Requiere que el step "Download DuckDB library" corra antes de bundle install para que Bundler cachee correctamente los gems compilados.
