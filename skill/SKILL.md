@@ -8,12 +8,14 @@ Skill de conocimiento completo sobre DataDrain. Consultame para cualquier pregun
 - **Engine** — Motor principal que orquesta el flujo Conteo → Export → Verify → Purge.
 - **FileIngestor** — Convierte archivos crudos (CSV/JSON/Parquet) a Parquet particionado en el Data Lake.
 - **Record** — Clase base ORM analítico (tipo ActiveRecord) read-only sobre Parquet vía DuckDB.
-- **GlueRunner** — Orquestador de AWS Glue Jobs para tablas de gran volumen (>500GB-1TB).
+- **GlueRunner** — Orquestador de AWS Glue Jobs para tablas de gran volumen (>500GB-1TB). Soporta lifecycle completo: crear, actualizar, eliminar y verificar jobs.
 - **Storage Adapter** — Patrón Strategy con dos implementaciones: `Storage::Local` y `Storage::S3`. Cacheado en `Storage.adapter`.
 - **Observability** — Módulo mixín (`include`/`extend`) con `safe_log` resiliente y logging KV estructurado.
 - **Hive Partitioning** — Estructura de carpetas `key1=val1/key2=val2/...` que DuckDB genera y consume nativamente para prefix scans eficientes.
 - **Semi-abierto** — Convención de rangos `[start, end)` con `<` (no `<=`) para evitar pérdida de microsegundos en límites de fecha.
 - **skip_export** — Modo del Engine donde delega export a herramienta externa (Glue/EMR) y solo verifica + purga.
+- **ensure_job** — Wrapper idempotente de GlueRunner que crea o actualiza un job según config deseada. Incluye diffing de configuración para evitar API calls innecesarios.
+- **changed_fields** — Helper privado de ensure_job que compara config deseada vs actual de un Glue Job y retorna qué campos difieren.
 - **Heartbeat** — Log de progreso emitido cada 100 lotes en purgas masivas (tablas 1TB).
 - **Wispro-Observability-Spec v1** — Estándar de logs KV: `component=` y `event=` primero, sufijo `_s` para tiempos float, `_count` para enteros, sin unidades en valores.
 
@@ -66,9 +68,9 @@ DataDrain resuelve el ciclo de vida de datos históricos en bases relacionales c
 
 ### Stack y dependencias
 
-- Ruby `>= 3.0.0`
+- Ruby `>= 3.2.0`
 - Runtime: `activemodel >= 6.0`, `duckdb ~> 1.4`, `pg >= 1.2`, `aws-sdk-s3 ~> 1.114`, `aws-sdk-glue ~> 1.0`
-- Versión actual: `0.1.19`
+- Versión actual: `0.4.0`
 
 ## API Pública (resumen)
 
@@ -123,6 +125,32 @@ ArchivedX.destroy_all(isp_id: 42)                               # => Integer (pa
 
 # 4. Glue para tablas 1TB+
 DataDrain::GlueRunner.run_and_wait("job-name", { "--key" => "val" }, polling_interval: 30)
+
+# 4b. Glue Jobs Lifecycle (v0.4.0+)
+# Verificar si existe
+DataDrain::GlueRunner.job_exists?("my-job")  # => true/false
+
+# Obtener config completa
+job = DataDrain::GlueRunner.get_job("my-job")  # => Aws::Glue::Types::Job
+
+# Crear job
+job = DataDrain::GlueRunner.create_job(
+  "my-job",
+  role_arn: "arn:aws:iam::123:role/GlueRole",
+  script_location: "s3://bucket/script.py",
+  timeout: 1440,
+  max_retries: 2
+)
+
+# Upsert idempotente con diffing de config
+job = DataDrain::GlueRunner.ensure_job(
+  "my-job",
+  role_arn: "arn:aws:iam::123:role/GlueRole",
+  script_location: "s3://bucket/script.py"
+)
+
+# Eliminar job (idempotente)
+DataDrain::GlueRunner.delete_job("my-job")  # => true/false
 ```
 
 Detalle completo de firmas, parámetros, retornos y comportamientos en [API Detallada](references/api-detallada.md).
@@ -197,6 +225,12 @@ Errores de query DuckDB. En `Engine#verify_integrity` se captura y se loguea com
 ### `RuntimeError` desde `GlueRunner`
 Levantado cuando un Job de Glue termina con estado `FAILED`, `STOPPED` o `TIMEOUT`. **Mensaje:** `"Glue Job <name> (Run ID: <id>) falló con estado <status>."`
 
+### `Aws::Glue::Errors::EntityNotFoundException`
+Job de Glue no existe. En `job_exists?` se rescata y retorna `false`. En `get_job`, `update_job` y `delete_job` se propaga.
+
+### `Aws::Glue::Errors::ServiceError`
+Error genérico de AWS Glue. Se propaga en todos los métodos de lifecycle. Los métodos emiten `glue_runner.job_*_error` antes de propagar.
+
 ## Antipatrones
 
 Catálogo completo en [Antipatrones](references/antipatrones.md). Resumen de los más críticos:
@@ -207,10 +241,12 @@ Catálogo completo en [Antipatrones](references/antipatrones.md). Resumen de los
 4. **Validar `idle_in_transaction_session_timeout` con `.present?`** — `0.present?` es `false`, ignora la config.
 5. **Usar `<= end_of_day`** en rangos de fecha — pierde registros con microsegundos.
 6. **Loguear `source=`** manualmente — duplica el campo que inyecta `exis_ray`.
+7. **Usar nombres de Glue Job con guiones bajos al inicio** — `validate_glue_name!` rechaza `_my-job`. Usar `my-job` o `my_job` (sin underscore inicial).
 
 ## Referencias
 
 - [API Detallada](references/api-detallada.md) — Firmas completas, parámetros, retornos y comportamientos de cada clase pública.
+- [Glue Jobs Lifecycle](https://github.com/gedera/data_drain/blob/main/docs/glue-jobs-lifecycle.md) — Guía completa de gestión de AWS Glue Jobs: crear, actualizar, eliminar, verificar y ejecutar jobs idempotentemente.
 - [Eventos y Telemetría](references/eventos-telemetria.md) — Catálogo completo de eventos KV emitidos por la gema.
 - [Antipatrones](references/antipatrones.md) — Qué NO hacer y alternativas correctas.
 - [Postgres Tuning](references/postgres-tuning.md) — Índices, VACUUM, particionamiento y diagnóstico por tamaño de tabla.
