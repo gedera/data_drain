@@ -966,11 +966,11 @@ Hoy `engine.purge_heartbeat` se emite cada 100 lotes, sin importar si los lotes 
 
 #### Item 12 — YARD coverage 50% → 90%
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `docs`
 **Compatibilidad:** N/A
-**Estimación:** M (4-6h)
+**Estimación:** M (5-8h)
 
 ##### Cambios
 
@@ -991,7 +991,7 @@ Documentar con YARD (`@param`, `@return`, `@raise`, `@example`):
 
 #### Item 13 — Extraer `build_path_base` en Storage::Base
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `refactor`
 **Compatibilidad:** backward-compatible
@@ -1027,7 +1027,7 @@ end
 
 #### Item 14 — CI con GitHub Actions
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `chore`
 **Compatibilidad:** N/A
@@ -1052,7 +1052,7 @@ Crear `.github/workflows/ci.yml`:
 
 #### Item 15 — Docs DEBUG en bloque y tuning ejemplos
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `docs`
 **Compatibilidad:** N/A
@@ -1074,7 +1074,7 @@ En `CLAUDE.md` y `skill/SKILL.md`:
 
 #### Item 16 — Adoptar DuckDB Friendly SQL (cosmético)
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `refactor`
 **Compatibilidad:** backward-compatible
@@ -1103,7 +1103,7 @@ Agregados el 2026-04-14 tras review de v0.2.1 y análisis del workaround de CI.
 
 #### Item 17 — Arreglar 48 ofensas RuboCop en `spec/` y re-habilitar en CI
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `chore` `test`
 **Compatibilidad:** N/A
@@ -1136,7 +1136,7 @@ v0.2.1 excluyó `spec/` de RuboCop en `.rubocop.yml` para desbloquear el CI. La 
 
 #### Item 18 — Matrix Ruby en CI (3.2, 3.3, 3.4)
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `chore`
 **Compatibilidad:** N/A
@@ -1172,7 +1172,7 @@ v0.2.1 solo corre CI en Ruby 3.4.4. La gema declara `required_ruby_version = ">=
 
 #### Item 19 — Migrar tests S3 de `stub_const` a `Aws::S3::Client.stub_responses`
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `refactor` `test`
 **Compatibilidad:** N/A
@@ -1251,7 +1251,7 @@ Item 10 del roadmap (refactor `Engine#call` CC=13→5) resolverá parte. Este it
 
 #### Item 22 — Cache de RuboCop en CI
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P3
 **Tipo:** `chore`
 **Compatibilidad:** N/A
@@ -1287,7 +1287,7 @@ En `.github/workflows/main.yml`, agregar step antes de `rubocop`:
 
 #### Item 23 — Coverage ≥ 90% en SimpleCov
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P2
 **Tipo:** `test`
 **Compatibilidad:** N/A
@@ -1319,7 +1319,7 @@ v0.2.0 dejó `minimum_coverage 80` con cobertura real ~97%. Subir el umbral a 90
 
 #### Item 24 — CI badge en README
 
-**Estado:** `[ ]`
+**Estado:** `[~]`
 **Prioridad:** P3
 **Tipo:** `docs`
 **Compatibilidad:** N/A
