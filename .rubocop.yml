@@ -21,6 +21,7 @@ Metrics/BlockLength:
   Exclude:
     - spec/**/*_spec.rb
     - data_drain.gemspec
+    - lib/**/*.rb
 
 Layout/LineLength:
   Exclude:

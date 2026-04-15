@@ -11,9 +11,9 @@ gem "rake", "~> 13.0"
 gem "rspec", "~> 3.0"
 
 group :test do
+  gem "rexml", require: false
   gem "simplecov", require: false
   gem "timecop", require: false
-  gem "rexml", require: false
 end
 
 gem "rubocop", "~> 1.21"
