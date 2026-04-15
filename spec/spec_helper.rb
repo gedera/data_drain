@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "simplecov"
+require "timecop"
 SimpleCov.start do
   add_filter "/spec/"
   minimum_coverage 80
@@ -30,5 +31,6 @@ RSpec.configure do |config|
   # 💡 Limpiamos el "Data Lake local" temporal después de cada prueba
   config.after(:each) do
     FileUtils.rm_rf("tmp/test_lake")
+    Timecop.return
   end
 end
