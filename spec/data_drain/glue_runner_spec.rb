@@ -8,44 +8,30 @@ RSpec.describe DataDrain::GlueRunner do
     end
   end
 
+  let(:glue_client) { Aws::Glue::Client.new(stub_responses: true, region: "us-east-1") }
+
   before do
     allow(DataDrain).to receive(:configuration).and_return(config)
+    allow(Aws::Glue::Client).to receive(:new).and_return(glue_client)
   end
 
   describe ".run_and_wait" do
-    let(:mock_client) { instance_double("AwsGlueClient") }
-
-    before do
-      stub_const("Aws::Glue::Client", Class.new do
-        def initialize(**opts); end
-      end)
-      allow(Aws::Glue::Client).to receive(:new).and_return(mock_client)
-    end
-
     it "retorna true cuando SUCCEEDED inmediato" do
-      start_response = double("start_resp", job_run_id: "run-123")
-      run_info = double("run_info", job_run_state: "SUCCEEDED", error_message: nil)
-
-      expect(mock_client).to receive(:start_job_run)
-        .with(hash_including(job_name: "my-job"))
-        .and_return(start_response)
-      expect(mock_client).to receive(:get_job_run)
-        .with(hash_including(job_name: "my-job", run_id: "run-123"))
-        .and_return(double("get_resp", job_run: run_info))
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-123" })
+      glue_client.stub_responses(:get_job_run, {
+                                   job_run: { job_run_state: "SUCCEEDED", error_message: nil }
+                                 })
 
       result = described_class.run_and_wait("my-job", { "--key" => "val" })
       expect(result).to be true
     end
 
     it "hace polling hasta SUCCEEDED" do
-      start_response = double("start_resp", job_run_id: "run-123")
-      running_info = double("run_info", job_run_state: "RUNNING", error_message: nil)
-      succeeded_info = double("run_info", job_run_state: "SUCCEEDED", error_message: nil)
-
-      expect(mock_client).to receive(:start_job_run)
-        .and_return(start_response)
-      expect(mock_client).to receive(:get_job_run).and_return(double("get_resp", job_run: running_info))
-      expect(mock_client).to receive(:get_job_run).and_return(double("get_resp", job_run: succeeded_info))
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-123" })
+      glue_client.stub_responses(:get_job_run, [
+                                   { job_run: { job_run_state: "RUNNING", error_message: nil } },
+                                   { job_run: { job_run_state: "SUCCEEDED", error_message: nil } }
+                                 ])
 
       allow(Kernel).to receive(:sleep)
 
@@ -54,12 +40,10 @@ RSpec.describe DataDrain::GlueRunner do
     end
 
     it "levanta RuntimeError cuando FAILED" do
-      start_response = double("start_resp", job_run_id: "run-456")
-      run_info = double("run_info", job_run_state: "FAILED", error_message: "Out of memory")
-
-      expect(mock_client).to receive(:start_job_run).and_return(start_response)
-      expect(mock_client).to receive(:get_job_run)
-        .and_return(double("get_resp", job_run: run_info))
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-456" })
+      glue_client.stub_responses(:get_job_run, {
+                                   job_run: { job_run_state: "FAILED", error_message: "Out of memory" }
+                                 })
 
       expect do
         described_class.run_and_wait("failing-job")
@@ -67,12 +51,10 @@ RSpec.describe DataDrain::GlueRunner do
     end
 
     it "levanta RuntimeError cuando STOPPED" do
-      start_response = double("start_resp", job_run_id: "run-789")
-      run_info = double("run_info", job_run_state: "STOPPED", error_message: nil)
-
-      expect(mock_client).to receive(:start_job_run).and_return(start_response)
-      expect(mock_client).to receive(:get_job_run)
-        .and_return(double("get_resp", job_run: run_info))
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-789" })
+      glue_client.stub_responses(:get_job_run, {
+                                   job_run: { job_run_state: "STOPPED", error_message: nil }
+                                 })
 
       expect do
         described_class.run_and_wait("stopped-job")
@@ -80,14 +62,10 @@ RSpec.describe DataDrain::GlueRunner do
     end
 
     it "trunca error_message a 200 chars" do
-      start_response = double("start_resp", job_run_id: "run-999")
-      long_msg = "x" * 300
-      run_info = double("run_info", job_run_state: "FAILED", error_message: long_msg)
-
-      expect(mock_client).to receive(:start_job_run).and_return(start_response)
-      expect(mock_client).to receive(:get_job_run).and_return(
-        double("get_resp", job_run: run_info)
-      )
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-999" })
+      glue_client.stub_responses(:get_job_run, {
+                                   job_run: { job_run_state: "FAILED", error_message: "x" * 300 }
+                                 })
 
       expect do
         described_class.run_and_wait("failing-job")
@@ -95,12 +73,10 @@ RSpec.describe DataDrain::GlueRunner do
     end
 
     it "levanta cuando hay error_message" do
-      start_response = double("start_resp", job_run_id: "run-101")
-      run_info = double("run_info", job_run_state: "FAILED", error_message: "Out of memory")
-
-      expect(mock_client).to receive(:start_job_run).and_return(start_response)
-      expect(mock_client).to receive(:get_job_run)
-        .and_return(double("get_resp", job_run: run_info))
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-101" })
+      glue_client.stub_responses(:get_job_run, {
+                                   job_run: { job_run_state: "FAILED", error_message: "Out of memory" }
+                                 })
 
       expect do
         described_class.run_and_wait("failing-job")
@@ -108,12 +84,10 @@ RSpec.describe DataDrain::GlueRunner do
     end
 
     it "levanta DataDrain::Error cuando max_wait_seconds se excede" do
-      start_response = double("start_resp", job_run_id: "run-timeout")
-      running_info = double("run_info", job_run_state: "RUNNING", error_message: nil)
-
-      allow(mock_client).to receive(:start_job_run).and_return(start_response)
-      allow(mock_client).to receive(:get_job_run)
-        .and_return(double("get_resp", job_run: running_info))
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-timeout" })
+      glue_client.stub_responses(:get_job_run, {
+                                   job_run: { job_run_state: "RUNNING", error_message: nil }
+                                 })
 
       times = [0.0, 0.1, 200.0]
       allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) do
@@ -127,12 +101,10 @@ RSpec.describe DataDrain::GlueRunner do
     end
 
     it "sin max_wait_seconds mantiene comportamiento anterior (no timeout local)" do
-      start_response = double("start_resp", job_run_id: "run-ok")
-      succeeded_info = double("run_info", job_run_state: "SUCCEEDED", error_message: nil)
-
-      allow(mock_client).to receive(:start_job_run).and_return(start_response)
-      allow(mock_client).to receive(:get_job_run)
-        .and_return(double("get_resp", job_run: succeeded_info))
+      glue_client.stub_responses(:start_job_run, { job_run_id: "run-ok" })
+      glue_client.stub_responses(:get_job_run, {
+                                   job_run: { job_run_state: "SUCCEEDED", error_message: nil }
+                                 })
 
       expect { described_class.run_and_wait("ok-job") }.not_to raise_error
     end

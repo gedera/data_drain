@@ -31,6 +31,7 @@ module DataDrain
     end
 
     # @api private
+    # @return [void]
     def reset_configuration!
       @configuration = Configuration.new
       DataDrain::Storage.reset_adapter!

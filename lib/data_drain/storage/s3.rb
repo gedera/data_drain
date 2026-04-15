@@ -2,6 +2,8 @@
 
 module DataDrain
   module Storage
+    # Adaptador de almacenamiento para Amazon S3.
+    # Configura credenciales en DuckDB y provee destrucción de particiones vía AWS SDK.
     class S3 < Base
       # Carga la extensión httpfs en DuckDB e inyecta las credenciales de AWS.
       # Si aws_access_key_id y aws_secret_access_key están seteados, usa

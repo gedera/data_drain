@@ -3,6 +3,8 @@
 module DataDrain
   # Módulo de validación de configuración para prevenir errores de uso.
   module Validations
+    # Regex que valida identificadores SQL (tablas, columnas, etc.).
+    # Permite letras, guiones bajos y números (no al inicio).
     IDENTIFIER_REGEX = /\A[a-zA-Z_][a-zA-Z0-9_]*\z/
 
     module_function

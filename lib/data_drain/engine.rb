@@ -50,6 +50,7 @@ module DataDrain
       @duckdb = database.connect
     end
 
+    # @return [Boolean] true si el flujo completó exitosamente, false si falló
     def call
       @durations = {}
       start_time = monotonic
