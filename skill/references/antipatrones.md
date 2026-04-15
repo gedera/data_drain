@@ -195,6 +195,16 @@ logger.debug("query=#{expensive_serialize(obj)}")  # Siempre evalúa, incluso si
 logger.debug { "query=#{expensive_serialize(obj)}" }
 ```
 
+**Ejemplo real en DataDrain:**
+
+```ruby
+# Incorrecto — el query puede tener MB de datos en partition_by, se serializa siempre:
+logger.debug("export_query=#{query}")
+
+# Correcto — solo se serializa si DEBUG está activo:
+logger.debug { "export_query=#{query}" }
+```
+
 ---
 
 ## 12. Asumir que `Record.connection` se puede cerrar manualmente
