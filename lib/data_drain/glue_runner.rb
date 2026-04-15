@@ -19,10 +19,30 @@ module DataDrain
     # @return [Boolean] true si el Job terminó exitosamente (SUCCEEDED).
     # @raise [DataDrain::Error] si max_wait_seconds excede antes de SUCCEEDED.
     # @raise [RuntimeError] si el Job falla o se detiene.
+    def self.client
+      @client ||= Aws::Glue::Client.new(region: DataDrain.configuration.aws_region)
+    end
+
+    class << self
+      attr_writer :client
+    end
+
+    def self.job_exists?(job_name)
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      get_job(job_name)
+      true
+    rescue Aws::Glue::Errors::EntityNotFoundException
+      false
+    end
+
+    def self.get_job(job_name)
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      client.get_job(job_name: job_name).job
+    end
+
     def self.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil)
       config = DataDrain.configuration
       config.validate!
-      client = Aws::Glue::Client.new(region: config.aws_region)
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
       @logger = config.logger

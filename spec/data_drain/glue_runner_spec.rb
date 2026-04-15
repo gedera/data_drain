@@ -13,6 +13,7 @@ RSpec.describe DataDrain::GlueRunner do
   before do
     allow(DataDrain).to receive(:configuration).and_return(config)
     allow(Aws::Glue::Client).to receive(:new).and_return(glue_client)
+    described_class.client = glue_client
   end
 
   describe ".run_and_wait" do
@@ -107,6 +108,53 @@ RSpec.describe DataDrain::GlueRunner do
                                  })
 
       expect { described_class.run_and_wait("ok-job") }.not_to raise_error
+    end
+  end
+
+  describe ".get_job" do
+    it "retorna el Job object cuando existe" do
+      glue_client.stub_responses(:get_job, {
+                                   job: {
+                                     name: "my-job",
+                                     role: "GlueServiceRole",
+                                     command: { name: "glueetl", python_version: "3",
+                                                script_location: "s3://bucket/script.py" }
+                                   }
+                                 })
+
+      job = described_class.get_job("my-job")
+      expect(job.name).to eq "my-job"
+      expect(job.role).to eq "GlueServiceRole"
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.get_job("invalid name!") }.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".job_exists?" do
+    it "retorna true cuando el job existe" do
+      glue_client.stub_responses(:get_job, {
+                                   job: { name: "my-job" }
+                                 })
+
+      expect(described_class.job_exists?("my-job")).to be true
+    end
+
+    it "retorna false cuando el job no existe" do
+      glue_client.stub_responses(:get_job, Aws::Glue::Errors::EntityNotFoundException.new(nil, "not found"))
+
+      expect(described_class.job_exists?("nonexistent-job")).to be false
+    end
+
+    it "propaga errores que no sean EntityNotFoundException" do
+      glue_client.stub_responses(:get_job, Aws::Glue::Errors::ValidationException.new(nil, "validation error"))
+
+      expect { described_class.job_exists?("my-job") }.to raise_error(Aws::Glue::Errors::ValidationException)
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.job_exists?("invalid name!") }.to raise_error(DataDrain::ConfigurationError)
     end
   end
 end
