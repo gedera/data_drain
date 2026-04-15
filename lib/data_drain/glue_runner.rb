@@ -40,6 +40,62 @@ module DataDrain
       client.get_job(job_name: job_name).job
     end
 
+    def self.create_job(job_name, role_arn:, script_location:, command_name: "glueetl",
+                        default_arguments: {}, description: nil, worker_type: nil, number_of_workers: nil,
+                        timeout: 2880, max_retries: 0, allocated_capacity: nil, glue_version: nil)
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      opts = {
+        name: job_name,
+        role: role_arn,
+        command: {
+          name: command_name,
+          python_version: "3",
+          script_location: script_location
+        }
+      }
+      opts[:default_arguments] = default_arguments unless default_arguments.empty?
+      opts[:description] = description if description
+      opts[:timeout] = timeout if timeout
+      opts[:max_retries] = max_retries if max_retries
+      opts[:allocated_capacity] = allocated_capacity if allocated_capacity
+      opts[:worker_type] = worker_type if worker_type
+      opts[:number_of_workers] = number_of_workers if number_of_workers
+      opts[:glue_version] = glue_version if glue_version
+
+      client.create_job(**opts)
+      get_job(job_name)
+    end
+
+    def self.update_job(job_name, role_arn: nil, command_name: nil, script_location: nil,
+                        default_arguments: nil, description: nil, worker_type: nil,
+                        number_of_workers: nil, timeout: nil, max_retries: nil, allocated_capacity: nil,
+                        glue_version: nil)
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      job_update = {}
+      job_update[:role] = role_arn if role_arn
+      if command_name && script_location
+        job_update[:command] =
+          { name: command_name, python_version: "3", script_location: script_location }
+      end
+      job_update[:default_arguments] = default_arguments if default_arguments
+      job_update[:description] = description if description
+      job_update[:timeout] = timeout if timeout
+      job_update[:max_retries] = max_retries if max_retries
+      job_update[:allocated_capacity] = allocated_capacity if allocated_capacity
+      job_update[:worker_type] = worker_type if worker_type
+      job_update[:number_of_workers] = number_of_workers if number_of_workers
+      job_update[:glue_version] = glue_version if glue_version
+
+      client.update_job(job_name: job_name, job_update: job_update)
+      get_job(job_name)
+    end
+
+    def self.delete_job(job_name)
+      DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+      client.delete_job(job_name: job_name)
+      nil
+    end
+
     def self.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil)
       config = DataDrain.configuration
       config.validate!

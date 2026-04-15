@@ -157,4 +157,71 @@ RSpec.describe DataDrain::GlueRunner do
       expect { described_class.job_exists?("invalid name!") }.to raise_error(DataDrain::ConfigurationError)
     end
   end
+
+  describe ".create_job" do
+    it "crea el job y retorna el job object" do
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:get_job, {
+                                   job: { name: "new-job", role: "arn:aws:iam::123:role/GlueRole" }
+                                 })
+
+      job = described_class.create_job(
+        "new-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_location: "s3://bucket/script.py"
+      )
+      expect(job.name).to eq "new-job"
+    end
+
+    it "solo incluye opts no-nil en la llamada a create_job" do
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:get_job, { job: { name: "my-job", max_retries: 2 } })
+
+      expect do
+        described_class.create_job(
+          "my-job",
+          role_arn: "arn:aws:iam::123:role/GlueRole",
+          script_location: "s3://bucket/script.py",
+          max_retries: 2,
+          description: "test"
+        )
+      end.not_to raise_error
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect do
+        described_class.create_job("invalid!", role_arn: "arn:aws:iam::123:role/GlueRole",
+                                               script_location: "s3://bucket/script.py")
+      end.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".update_job" do
+    it "actualiza el job y retorna el job actualizado" do
+      glue_client.stub_responses(:update_job, {})
+      glue_client.stub_responses(:get_job, {
+                                   job: { name: "my-job", description: "updated description" }
+                                 })
+
+      job = described_class.update_job("my-job", description: "updated description")
+      expect(job.description).to eq "updated description"
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.update_job("invalid!") }.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
+
+  describe ".delete_job" do
+    it "elimina el job y retorna nil" do
+      glue_client.stub_responses(:delete_job, {})
+
+      result = described_class.delete_job("my-job")
+      expect(result).to be_nil
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect { described_class.delete_job("invalid!") }.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
 end
