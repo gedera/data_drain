@@ -110,4 +110,49 @@ RSpec.describe DataDrain::Storage::Local do
       end
     end
   end
+
+  describe "#upload_file" do
+    it "copia el archivo al destino local y retorna el path absoluto" do
+      Dir.mktmpdir do |tmpdir|
+        source = File.join(tmpdir, "source.py")
+        File.write(source, "# python")
+
+        dest_dir = File.join(tmpdir, "dest")
+        result = adapter.upload_file(source, dest_dir, "scripts/export.py")
+
+        expected = File.join(dest_dir, "scripts/export.py")
+        expect(result).to eq(expected)
+        expect(File.read(expected)).to eq("# python")
+      end
+    end
+
+    it "crea directorios anidados" do
+      Dir.mktmpdir do |tmpdir|
+        source = File.join(tmpdir, "source.py")
+        File.write(source, "# python")
+
+        dest_dir = File.join(tmpdir, "dest")
+        result = adapter.upload_file(source, dest_dir, "a/b/c/script.py")
+
+        expect(File.directory?(File.join(dest_dir, "a/b/c"))).to be true
+        expect(File.exist?(result)).to be true
+      end
+    end
+
+    it "sobrescribe archivo existente" do
+      Dir.mktmpdir do |tmpdir|
+        source = File.join(tmpdir, "source.py")
+        File.write(source, "# new content")
+
+        dest_dir = File.join(tmpdir, "dest")
+        dest_file = File.join(dest_dir, "scripts/export.py")
+        FileUtils.mkdir_p(File.join(dest_dir, "scripts"))
+        File.write(dest_file, "# old content")
+
+        result = adapter.upload_file(source, dest_dir, "scripts/export.py")
+
+        expect(File.read(result)).to eq("# new content")
+      end
+    end
+  end
 end

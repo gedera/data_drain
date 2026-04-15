@@ -38,6 +38,23 @@ module DataDrain
         delete_in_batches(client, bucket, objects)
       end
 
+      # @param local_path [String]
+      # @param bucket [String]
+      # @param s3_key [String]
+      # @param content_type [String, nil]
+      # @return [String] "s3://bucket/key"
+      def upload_file(local_path, bucket, s3_key, content_type: nil)
+        client = s3_client
+
+        File.open(local_path, "rb") do |file|
+          params = { bucket: bucket, key: s3_key, body: file }
+          params[:content_type] = content_type if content_type
+          client.put_object(**params)
+        end
+
+        "s3://#{bucket}/#{s3_key}"
+      end
+
       private
 
       # @return [Aws::S3::Client]

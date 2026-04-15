@@ -32,16 +32,102 @@ job.default_arguments  # => { "--extra-files" => "s3://..." }
 - Lanza `DataDrain::ConfigurationError` si `job_name` es inválido.
 - Lanza `Aws::Glue::Errors::EntityNotFoundException` si el job no existe.
 
-### `create_job(job_name, role_arn:, script_location:, ...)` → Aws::Glue::Types::Job
+### Subir scripts locales (v0.5.0+)
+
+Desde v0.5.0 la gema puede subir scripts PySpark a S3 automáticamente.
+
+```ruby
+# Opción moderna: script local subido por la gema
+DataDrain::GlueRunner.create_job(
+  "my-job",
+  script_path: "scripts/glue/export.py",  # local
+  script_bucket: "my-bucket",
+  script_folder: "scripts",
+  role_arn: "arn:aws:iam::123:role/GlueRole"
+)
+# → Sube scripts/glue/export.py a s3://my-bucket/scripts/export.py
+# → Crea el job
+```
+
+**Parámetros para upload:**
+- `script_path` (String): ruta local al script Python.
+- `script_bucket` (String): bucket S3 destino. **Requerido si se usa `script_path`.**
+- `script_folder` (String): folder dentro del bucket. Default: `"scripts"`.
+- `script_filename` (String, nil): override del nombre en S3. Default: basename del archivo.
+
+**`script_location` vs `script_path`:**
+- `script_location:` → comportamiento anterior, no hay upload.
+- `script_path:` + `script_bucket:` → la gema sube a S3 primero, luego crea el Job.
+- Si se pasan ambos → `DataDrain::ConfigurationError`.
+- Si no se pasa ninguno → `ArgumentError`.
+
+**Importante:** el upload **sobrescribe** cualquier archivo existente en el mismo path.
+No es idempotente en sentido estricto. Usar `script_filename:` con hash o timestamp
+si necesitás versionado.
+
+### Concurrencia (limitación conocida)
+
+No hay lock distribuido. Si dos procesos llaman `upload_script` con el mismo destino
+simultáneamente, el último `put_object` en llegar a S3 gana. Para scripts PySpark
+esto es típicamente bajo riesgo (scripts son pequeños, rara vez hay writes
+concurrentes al mismo path).
+
+### Permisos IAM mínimos
+
+El IAM role/user que ejecuta `upload_script` necesita:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:PutObject"],
+  "Resource": "arn:aws:s3:::my-bucket/scripts/*"
+}
+```
+
+Para usar con `create_job`/`ensure_job` también se necesitan los permisos de Glue
+(ver sección "Permisos Glue" al inicio de este documento) + permiso para que el
+IAM role del Glue Job pueda leer el script:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:GetObject"],
+  "Resource": "arn:aws:s3:::my-bucket/scripts/*"
+}
+```
+
+(Este último en el role del Glue Job, no en el role de la aplicación Ruby.)
+
+### API standalone: `upload_script`
+
+Para casos donde solo querés subir (sin crear Job):
+
+```ruby
+s3_path = DataDrain::GlueRunner.upload_script(
+  local_path: "scripts/glue/export.py",
+  bucket: "my-bucket",
+  folder: "scripts"
+)
+# => "s3://my-bucket/scripts/export.py"
+```
+
+Requiere `storage_mode = :s3`.
+
+### `create_job(job_name, role_arn:, ...)` → Aws::Glue::Types::Job
 
 Crea un nuevo job en Glue y retorna el job creado.
 
 **Parámetros requeridos:**
 - `job_name` (String): nombre del job
 - `role_arn` (String): ARN del IAM role de Glue
-- `script_location` (String): path S3 del script Python
+
+**Parámetros de script (mutuamente excluyentes):**
+- `script_location` (String): path S3 del script Python (comportamiento anterior)
+- `script_path` + `script_bucket` (String): upload local a S3 primero (v0.5.0+)
 
 **Parámetros opcionales:**
+- `script_folder` (String): folder S3. Default: `"scripts"`.
+- `script_filename` (String, nil): override del nombre en S3.
 - `command_name` (String): nombre del comando (`"glueetl"`, `"pythonshell"`). Default: `"glueetl"`.
 - `default_arguments` (Hash): argumentos default del job
 - `description` (String): descripción del job
@@ -100,7 +186,7 @@ DataDrain::GlueRunner.delete_job("nonexistent")
 - Lanza `DataDrain::ConfigurationError` si `job_name` es inválido.
 - Lanza otros errores de AWS sin atrapar.
 
-### `ensure_job(job_name, role_arn:, script_location:, ...)` → Aws::Glue::Types::Job
+### `ensure_job(job_name, role_arn:, ...)` → Aws::Glue::Types::Job
 
 Crea o actualiza un job de forma idempotente con diffing de configuración.
 
@@ -113,6 +199,19 @@ job = DataDrain::GlueRunner.ensure_job(
   "my-job",
   role_arn: "arn:aws:iam::123:role/GlueServiceRole",
   script_location: "s3://my-bucket/scripts/export.py",
+  timeout: 1440
+)
+```
+
+También soporta upload de script local (v0.5.0+):
+
+```ruby
+job = DataDrain::GlueRunner.ensure_job(
+  "my-job",
+  script_path: "scripts/glue/export.py",
+  script_bucket: "my-bucket",
+  script_folder: "scripts",
+  role_arn: "arn:aws:iam::123:role/GlueServiceRole",
   timeout: 1440
 )
 ```
@@ -223,6 +322,8 @@ DataDrain::GlueRunner.job_exists?("-starts-with-dash")
 | `glue_runner.job_create_error` | ERROR | Error en `create_job` |
 | `glue_runner.job_update_error` | ERROR | Error en `update_job` |
 | `glue_runner.job_delete_error` | ERROR | Error en `delete_job` |
+| `glue_runner.script_uploaded` | INFO | Script subido a S3 (v0.5.0+) |
+| `glue_runner.script_upload_error` | ERROR | Error al subir script a S3 (v0.5.0+) |
 | `glue_runner.polling` | INFO | Chequeo de estado durante `run_and_wait` |
 | `glue_runner.complete` | INFO | Job terminó `SUCCEEDED` |
 | `glue_runner.failed` | ERROR | Job falló con `FAILED\|STOPPED\|TIMEOUT` |

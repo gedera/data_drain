@@ -1,5 +1,23 @@
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-15
+
+### Features
+
+- `Storage::S3#upload_file` y `Storage::Local#upload_file`: primitiva para subir archivos al storage configurado. (item 37)
+- `GlueRunner.upload_script(local_path:, bucket:, folder:, filename:)`: sube script Python local a S3 usando el `Storage::S3` adapter existente. Emite `glue_runner.script_uploaded` (INFO) y `glue_runner.script_upload_error` (ERROR). (item 37)
+- `GlueRunner.create_job` y `GlueRunner.ensure_job` aceptan `script_path:` + `script_bucket:` + `script_folder:` + `script_filename:` para subir scripts locales automáticamente. Si se usa `script_location:`, comportamiento idéntico al anterior. (item 37)
+
+### Docs
+
+- `docs/glue-jobs-lifecycle.md`: sección "Subir scripts locales" con patrón completo, permisos IAM mínimos y limitación de concurrencia.
+- `docs/glue_pyspark_example.py`: ejemplo de uso con `script_path`.
+
+### Notas
+
+- **Upload NO es idempotente en sentido estricto:** `put_object` sobrescribe siempre. Documentado.
+- `upload_script` requiere `storage_mode = :s3`. En `:local` levanta `ConfigurationError`.
+
 ## [0.4.0] - 2026-04-15
 
 ### Features

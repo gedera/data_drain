@@ -163,4 +163,49 @@ RSpec.describe DataDrain::Storage::S3 do
       expect(deleted_keys).not_to include("versions/isp_id=99/year=2026/month=3/data.parquet")
     end
   end
+
+  describe "#upload_file" do
+    let(:s3_client) { Aws::S3::Client.new(stub_responses: true, region: "us-east-1") }
+
+    before do
+      allow(Aws::S3::Client).to receive(:new).and_return(s3_client)
+    end
+
+    let(:temp_script) { Tempfile.new(["export", ".py"], binmode: true) }
+
+    before do
+      temp_script.write("# python content")
+      temp_script.close
+    end
+
+    after { temp_script.unlink }
+
+    it "sube el archivo a S3 y retorna el path completo" do
+      uploaded_params = nil
+      s3_client.stub_responses(:put_object, lambda { |context|
+        uploaded_params = context.params
+        {}
+      })
+
+      result = adapter.upload_file(temp_script.path, "my-bucket", "scripts/export.py",
+                                   content_type: "text/x-python")
+
+      expect(result).to eq("s3://my-bucket/scripts/export.py")
+      expect(uploaded_params[:bucket]).to eq("my-bucket")
+      expect(uploaded_params[:key]).to eq("scripts/export.py")
+      expect(uploaded_params[:content_type]).to eq("text/x-python")
+    end
+
+    it "omite content_type si no se provee" do
+      uploaded_params = nil
+      s3_client.stub_responses(:put_object, lambda { |context|
+        uploaded_params = context.params
+        {}
+      })
+
+      adapter.upload_file(temp_script.path, "my-bucket", "export.py")
+
+      expect(uploaded_params).not_to have_key(:content_type)
+    end
+  end
 end
