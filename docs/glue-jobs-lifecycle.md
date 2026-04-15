@@ -137,6 +137,63 @@ DataDrain::GlueRunner.run_and_wait(
 - Lanza `RuntimeError` si el job falla (`FAILED`, `STOPPED`, `TIMEOUT`).
 - Lanza `DataDrain::Error` si `max_wait_seconds` excede.
 
+## Patrón completo: ensure_job + run_and_wait + PySpark
+
+Workflow end-to-end para archivar y purgar tablas PostgreSQL usando AWS Glue:
+
+```ruby
+# 1. Asegurar que el Glue Job existe con la config deseada (idempotente)
+DataDrain::GlueRunner.ensure_job(
+  "my-export-job",
+  role_arn: "arn:aws:iam::123:role/GlueServiceRole",
+  script_location: "s3://my-bucket/scripts/glue_pyspark_export.py",
+  glue_version: "4.0",
+  worker_type: "G.1X",
+  number_of_workers: 10,
+  timeout: 1440
+)
+
+# 2. Ejecutar el export (delegado a Glue Spark distribuido)
+DataDrain::GlueRunner.run_and_wait(
+  "my-export-job",
+  {
+    "--start_date"   => start_date.to_fs(:db),
+    "--end_date"     => end_date.to_fs(:db),
+    "--s3_bucket"    => bucket,
+    "--s3_folder"    => table,
+    "--db_url"       => "jdbc:postgresql://#{host}:#{port}/#{db}",
+    "--db_user"      => db_user,
+    "--db_password"  => db_password,
+    "--db_table"     => table,
+    "--partition_by" => partition_keys.join(",")
+  },
+  polling_interval: 60,
+  max_wait_seconds: 7200
+)
+
+# 3. Verificar integridad y purgar Postgres (DataDrain solo lee Parquet)
+DataDrain::Engine.new(
+  bucket: bucket,
+  folder_name: table,
+  start_date: start_date,
+  end_date: end_date,
+  table_name: table,
+  partition_keys: partition_keys,
+  skip_export: true  # export ya lo hizo Glue
+).call
+```
+
+### Prerequisites
+
+1. **Subir el script a S3:**
+   ```bash
+   aws s3 cp glue_pyspark_export.py s3://my-bucket/scripts/
+   ```
+
+2. **IAM Role** con permisos para: Glue, S3 (lectura del script + escritura del bucket destino), RDS/Postgres (vía JDBC)
+
+3. **Script PySpark** en `s3://my-bucket/scripts/glue_pyspark_export.py` (ver [ejemplo](../glue_pyspark_example.py))
+
 ## Convenciones de nombres
 
 AWS Glue permite: letras (`a-zA-Z`), números (`0-9`), guiones (`-`), guiones bajos (`_`). No permite espacios ni caracteres especiales.
