@@ -6,8 +6,7 @@ module DataDrain
   # aplicando compresión ZSTD y particionamiento Hive.
   class FileIngestor
     include Observability
-    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity,
-    #   Metrics/MethodLength
+    include Observability::Timing
 
     # @param options [Hash] Opciones de ingestión.
     # @option options [String] :source_path Ruta absoluta al archivo local.
@@ -36,46 +35,77 @@ module DataDrain
     # Ejecuta el flujo de ingestión.
     # @return [Boolean] true si el proceso fue exitoso.
     def call
-      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      @durations = {}
+      start_time = monotonic
       safe_log(:info, "file_ingestor.start", { source_path: @source_path })
 
-      unless File.exist?(@source_path)
-        safe_log(:error, "file_ingestor.file_not_found", { source_path: @source_path })
-        return false
-      end
+      return file_not_found(start_time) unless step_validate_file
 
+      step_setup_duckdb
+      @reader_function = determine_reader
+      @source_count = step_count_source
+
+      return skip_empty(start_time) if @source_count.zero?
+
+      step_export
+      log_complete(start_time)
+      cleanup_local_file
+      true
+    rescue DuckDB::Error => e
+      duration = monotonic - start_time
+      safe_log(:error, "file_ingestor.duckdb_error",
+               { source_path: @source_path }.merge(exception_metadata(e)).merge(duration_s: duration.round(2)))
+      false
+    ensure
+      @duckdb&.close
+    end
+
+    private
+
+    # @api private
+    def file_not_found(_start_time)
+      safe_log(:error, "file_ingestor.file_not_found", { source_path: @source_path })
+      false
+    end
+
+    # @api private
+    def step_validate_file
+      File.exist?(@source_path)
+    end
+
+    # @api private
+    def step_setup_duckdb
       @duckdb.query("SET max_memory='#{@config.limit_ram}';") if @config.limit_ram.present?
       @duckdb.query("SET temp_directory='#{@config.tmp_directory}'") if @config.tmp_directory.present?
-
       @adapter.setup_duckdb(@duckdb)
+    end
 
-      # Determinamos la función lectora de DuckDB según la extensión del archivo
-      reader_function = determine_reader
-
-      # 1. Conteo de seguridad
-      step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      source_count = @duckdb.query("SELECT COUNT(*) FROM #{reader_function}").first.first
-      source_query_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
+    # @api private
+    def step_count_source
+      source_count = timed(:source_query) { @duckdb.query("SELECT COUNT(*) FROM #{@reader_function}").first.first }
       safe_log(:info, "file_ingestor.count", {
                  source_path: @source_path,
                  count: source_count,
-                 source_query_duration_s: source_query_duration.round(2)
+                 source_query_duration_s: @durations.fetch(:source_query, 0).round(2)
                })
+      source_count
+    end
 
-      if source_count.zero?
-        cleanup_local_file
-        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        safe_log(:info, "file_ingestor.skip_empty", { source_path: @source_path, duration_s: duration.round(2) })
-        return true
-      end
+    # @api private
+    def skip_empty(start_time)
+      cleanup_local_file
+      duration = monotonic - start_time
+      safe_log(:info, "file_ingestor.skip_empty", { source_path: @source_path, duration_s: duration.round(2) })
+      true
+    end
 
-      # 2. Exportación / Subida
+    # @api private
+    def step_export
       @adapter.prepare_export_path(@bucket, @folder_name)
       dest_path = if @config.storage_mode.to_sym == :s3
                     "s3://#{@bucket}/#{@folder_name}/"
                   else
-                    File.join(@bucket,
-                              @folder_name, "")
+                    File.join(@bucket, @folder_name, "")
                   end
 
       partition_clause = @partition_keys.any? ? "PARTITION_BY (#{@partition_keys.join(", ")})," : ""
@@ -83,7 +113,7 @@ module DataDrain
       query = <<~SQL
         COPY (
           SELECT #{@select_sql}
-          FROM #{reader_function}
+          FROM #{@reader_function}
         ) TO '#{dest_path}'
         (
           FORMAT PARQUET,
@@ -94,31 +124,20 @@ module DataDrain
       SQL
 
       safe_log(:info, "file_ingestor.export_start", { dest_path: dest_path })
-      step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      @duckdb.query(query)
-      export_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
+      timed(:export) { @duckdb.query(query) }
+    end
 
-      duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+    # @api private
+    def log_complete(start_time)
+      duration = monotonic - start_time
       safe_log(:info, "file_ingestor.complete", {
                  source_path: @source_path,
                  duration_s: duration.round(2),
-                 source_query_duration_s: source_query_duration.round(2),
-                 export_duration_s: export_duration.round(2),
-                 count: source_count
+                 source_query_duration_s: @durations.fetch(:source_query, 0).round(2),
+                 export_duration_s: @durations.fetch(:export, 0).round(2),
+                 count: @source_count
                })
-
-      cleanup_local_file
-      true
-    rescue DuckDB::Error => e
-      duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-      safe_log(:error, "file_ingestor.duckdb_error",
-               { source_path: @source_path }.merge(exception_metadata(e)).merge(duration_s: duration.round(2)))
-      false
-    ensure
-      @duckdb&.close
     end
-
-    private
 
     # @api private
     def determine_reader
@@ -142,6 +161,4 @@ module DataDrain
       safe_log(:info, "file_ingestor.cleanup", { source_path: @source_path })
     end
   end
-  # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity,
-  #   Metrics/MethodLength
 end
