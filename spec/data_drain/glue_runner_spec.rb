@@ -224,4 +224,41 @@ RSpec.describe DataDrain::GlueRunner do
       expect { described_class.delete_job("invalid!") }.to raise_error(DataDrain::ConfigurationError)
     end
   end
+
+  describe ".ensure_job" do
+    it "crea el job cuando no existe" do
+      glue_client.stub_responses(:get_job, Aws::Glue::Errors::EntityNotFoundException.new(nil, "not found"))
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:update_job, {})
+      glue_client.stub_responses(:get_job, { job: { name: "my-job", role: "arn:aws:iam::123:role/GlueRole" } })
+
+      job = described_class.ensure_job(
+        "my-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_location: "s3://bucket/script.py"
+      )
+      expect(job.name).to eq "my-job"
+    end
+
+    it "actualiza el job cuando ya existe" do
+      glue_client.stub_responses(:get_job, { job: { name: "existing-job" } })
+      glue_client.stub_responses(:update_job, {})
+      glue_client.stub_responses(:get_job, { job: { name: "existing-job", description: "updated" } })
+
+      job = described_class.ensure_job(
+        "existing-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_location: "s3://bucket/script.py",
+        description: "updated"
+      )
+      expect(job.description).to eq "updated"
+    end
+
+    it "levanta ConfigurationError para nombre inválido" do
+      expect do
+        described_class.ensure_job("invalid!", role_arn: "arn:aws:iam::123:role/GlueRole",
+                                               script_location: "s3://bucket/script.py")
+      end.to raise_error(DataDrain::ConfigurationError)
+    end
+  end
 end

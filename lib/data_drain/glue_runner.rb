@@ -96,6 +96,29 @@ module DataDrain
       nil
     end
 
+    def self.ensure_job(job_name, role_arn:, script_location:, command_name: "glueetl",
+                        default_arguments: {}, description: nil, worker_type: nil,
+                        number_of_workers: nil, timeout: 2880, max_retries: 0,
+                        allocated_capacity: nil, glue_version: nil)
+      if job_exists?(job_name)
+        safe_log(:info, "glue_runner.job_exists", { job: job_name })
+        update_job(job_name, role_arn: role_arn, command_name: command_name,
+                             script_location: script_location, default_arguments: default_arguments,
+                             description: description, worker_type: worker_type,
+                             number_of_workers: number_of_workers, timeout: timeout,
+                             max_retries: max_retries, allocated_capacity: allocated_capacity,
+                             glue_version: glue_version)
+      else
+        safe_log(:info, "glue_runner.job_created", { job: job_name })
+        create_job(job_name, role_arn: role_arn, script_location: script_location,
+                             command_name: command_name, default_arguments: default_arguments,
+                             description: description, worker_type: worker_type,
+                             number_of_workers: number_of_workers, timeout: timeout,
+                             max_retries: max_retries, allocated_capacity: allocated_capacity,
+                             glue_version: glue_version)
+      end
+    end
+
     def self.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil)
       config = DataDrain.configuration
       config.validate!
