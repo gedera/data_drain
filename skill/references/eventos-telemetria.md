@@ -115,6 +115,14 @@ Catálogo completo de eventos KV emitidos por DataDrain. Formato Wispro-Observab
 **Nivel:** INFO. Emite antes de `start_job_run`.
 **Campos:** `job`.
 
+### `glue_runner.job_exists`
+**Nivel:** INFO. Emite en `ensure_job` cuando el job ya existe y se actualiza.
+**Campos:** `job`.
+
+### `glue_runner.job_created`
+**Nivel:** INFO. Emite en `ensure_job` cuando el job se crea.
+**Campos:** `job`.
+
 ### `glue_runner.polling`
 **Nivel:** INFO. Emite cada chequeo de estado mientras Job no terminó.
 **Campos:** `job`, `run_id`, `status`, `next_check_in_s`.

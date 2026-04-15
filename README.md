@@ -107,6 +107,36 @@ DataDrain::Engine.new(
 ### Orquestación con AWS Glue (tablas 1TB+)
 
 ```ruby
+# Verificar si un job existe
+DataDrain::GlueRunner.job_exists?("my-glue-export-job")
+# => true / false
+
+# Obtener configuración de un job
+job = DataDrain::GlueRunner.get_job("my-glue-export-job")
+# => Aws::Glue::Types::Job (Name, Command, DefaultArguments, etc.)
+
+# Crear un job
+job = DataDrain::GlueRunner.create_job(
+  "my-glue-export-job",
+  role_arn: "arn:aws:iam::123:role/GlueServiceRole",
+  script_location: "s3://my-bucket/scripts/export.py",
+  default_arguments: { "--extra-files" => "s3://my-bucket/scripts/udf.py" },
+  timeout: 1440,
+  max_retries: 2
+)
+
+# Asegurar job idempotente (crea si no existe, actualiza si existe)
+job = DataDrain::GlueRunner.ensure_job(
+  "my-glue-export-job",
+  role_arn: "arn:aws:iam::123:role/GlueServiceRole",
+  script_location: "s3://my-bucket/scripts/export.py",
+  timeout: 1440
+)
+
+# Eliminar un job
+DataDrain::GlueRunner.delete_job("my-glue-export-job")
+
+# Ejecutar y esperar
 DataDrain::GlueRunner.run_and_wait(
   "my-glue-export-job",
   {
