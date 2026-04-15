@@ -56,6 +56,9 @@ module DataDrain
         conn.query("SET temp_directory='#{config.tmp_directory}'") if config.tmp_directory.present?
 
         DataDrain::Storage.adapter.setup_duckdb(conn)
+
+        conn.query("SET lock_configuration=true;")
+
         { db: db, conn: conn }
       end
       Thread.current[:data_drain_duckdb][:conn]
