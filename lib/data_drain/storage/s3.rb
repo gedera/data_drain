@@ -3,8 +3,6 @@
 module DataDrain
   module Storage
     class S3 < Base
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
-
       # Carga la extensión httpfs en DuckDB e inyecta las credenciales de AWS.
       # Si aws_access_key_id y aws_secret_access_key están seteados, usa
       # credenciales explícitas. Si no, usa credential_chain (IAM role, env vars,
@@ -32,33 +30,55 @@ module DataDrain
       # @param partitions [Hash]
       # @return [Integer]
       def destroy_partitions(bucket, folder_name, partition_keys, partitions)
-        client = Aws::S3::Client.new(
+        client = s3_client
+        prefix, pattern_regex = build_destroy_pattern(folder_name, partition_keys, partitions)
+        objects = collect_matching_objects(client, bucket, prefix, pattern_regex)
+        delete_in_batches(client, bucket, objects)
+      end
+
+      private
+
+      # @return [Aws::S3::Client]
+      def s3_client
+        Aws::S3::Client.new(
           region: @config.aws_region,
           access_key_id: @config.aws_access_key_id,
           secret_access_key: @config.aws_secret_access_key
         )
+      end
 
+      # @param folder_name [String]
+      # @param partition_keys [Array<Symbol>]
+      # @param partitions [Hash]
+      # @return [Array(String, Regexp)] prefix y pattern_regex
+      def build_destroy_pattern(folder_name, partition_keys, partitions)
         regex_parts = partition_keys.map do |key|
           val = partitions[key]
           val.nil? || val.to_s.empty? ? "#{key}=[^/]+" : "#{key}=#{val}"
         end
-        pattern_regex = Regexp.new("^#{folder_name}/#{regex_parts.join("/")}")
+        pattern = Regexp.new("^#{folder_name}/#{regex_parts.join("/")}")
 
-        objects_to_delete = []
         prefix = "#{folder_name}/"
         first_key = partition_keys.first
         prefix += "#{first_key}=#{partitions[first_key]}/" if partitions[first_key]
 
-        client.list_objects_v2(bucket: bucket, prefix: prefix).each do |response|
-          response.contents.each do |obj|
-            objects_to_delete << { key: obj.key } if obj.key.match?(pattern_regex)
-          end
-        end
-
-        delete_in_batches(client, bucket, objects_to_delete)
+        [prefix, pattern]
       end
 
-      private
+      # @param client [Aws::S3::Client]
+      # @param bucket [String]
+      # @param prefix [String]
+      # @param pattern_regex [Regexp]
+      # @return [Array<Hash>]
+      def collect_matching_objects(client, bucket, prefix, pattern_regex)
+        objects = []
+        client.list_objects_v2(bucket: bucket, prefix: prefix).each do |response|
+          response.contents.each do |obj|
+            objects << { key: obj.key } if obj.key.match?(pattern_regex)
+          end
+        end
+        objects
+      end
 
       # @param connection [DuckDB::Connection]
       # @raise [DataDrain::ConfigurationError]
@@ -107,6 +127,5 @@ module DataDrain
         deleted_count
       end
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
   end
 end

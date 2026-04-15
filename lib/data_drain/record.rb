@@ -46,7 +46,6 @@ module DataDrain
     # Esto previene tener que recargar extensiones (como httpfs) en cada consulta.
     #
     # @return [DuckDB::Connection] Conexión activa a DuckDB.
-    # rubocop:disable Metrics/AbcSize
     def self.connection
       Thread.current[:data_drain_duckdb] ||= begin
         db = DuckDB::Database.open(":memory:")
@@ -57,11 +56,13 @@ module DataDrain
         conn.query("SET temp_directory='#{config.tmp_directory}'") if config.tmp_directory.present?
 
         DataDrain::Storage.adapter.setup_duckdb(conn)
+
+        conn.query("SET lock_configuration=true;")
+
         { db: db, conn: conn }
       end
       Thread.current[:data_drain_duckdb][:conn]
     end
-    # rubocop:enable Metrics/AbcSize
 
     # Consulta registros en el Data Lake filtrando por claves de partición.
     #
@@ -138,22 +139,14 @@ module DataDrain
       # @param sql [String]
       # @param columns [Array<String>]
       # @return [Array<DataDrain::Record>]
-      # rubocop:disable Metrics/MethodLength
       def execute_and_instantiate(sql, columns)
         @logger = DataDrain.configuration.logger
-        begin
-          result = connection.query(sql)
-        rescue DuckDB::Error => e
-          safe_log(:warn, "record.parquet_not_found", exception_metadata(e))
-          return []
-        end
-
-        result.map do |row|
-          attributes_hash = columns.zip(row).to_h
-          new(attributes_hash)
-        end
+        result = connection.query(sql)
+        result.map { |row| new(columns.zip(row).to_h) }
+      rescue DuckDB::Error => e
+        safe_log(:warn, "record.parquet_not_found", exception_metadata(e))
+        []
       end
     end
-    # rubocop:enable Metrics/MethodLength
   end
 end

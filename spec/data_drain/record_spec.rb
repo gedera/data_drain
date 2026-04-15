@@ -62,6 +62,23 @@ RSpec.describe DataDrain::Record do
     ensure
       thread.join if thread.alive?
     end
+
+    it "aplica lock_configuration=true tras setup" do
+      conn = record_class.connection
+      expect do
+        conn.query("SET memory_limit='1KB';")
+      end.to raise_error(DuckDB::Error, /lock/i)
+    end
+
+    it "reaplica lock_configuration tras reconnect" do
+      record_class.connection
+      record_class.disconnect!
+      conn = record_class.connection
+
+      expect do
+        conn.query("SET memory_limit='1KB';")
+      end.to raise_error(DuckDB::Error, /lock/i)
+    end
   end
 
   describe ".disconnect!" do
