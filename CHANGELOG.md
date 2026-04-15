@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-15
+
+### Docs
+
+- `skill/references/eventos-telemetria.md`: nuevos eventos `script_uploaded` y `script_upload_error`.
+- `README.md`: ejemplos de `script_path` en GlueRunner y observabilidad.
+
 ## [0.5.0] - 2026-04-15
 
 ### Features

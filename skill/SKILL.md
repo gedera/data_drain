@@ -70,7 +70,7 @@ DataDrain resuelve el ciclo de vida de datos históricos en bases relacionales c
 
 - Ruby `>= 3.2.0`
 - Runtime: `activemodel >= 6.0`, `duckdb ~> 1.4`, `pg >= 1.2`, `aws-sdk-s3 ~> 1.114`, `aws-sdk-glue ~> 1.0`
-- Versión actual: `0.5.0`
+- Versión actual: `0.5.1`
 
 ## API Pública (resumen)
 
