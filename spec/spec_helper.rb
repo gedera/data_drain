@@ -2,9 +2,10 @@
 
 require "simplecov"
 require "timecop"
+require "rexml/document"
 SimpleCov.start do
   add_filter "/spec/"
-  minimum_coverage 80
+  minimum_coverage 90
 end
 
 require "data_drain"

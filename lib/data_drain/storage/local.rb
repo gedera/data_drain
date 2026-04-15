@@ -24,9 +24,7 @@ module DataDrain
       # @param partition_path [String, nil]
       # @return [String]
       def build_path(bucket, folder_name, partition_path)
-        base = File.join(bucket, folder_name)
-        base = File.join(base, partition_path) if partition_path && !partition_path.empty?
-        "#{base}/**/*.parquet"
+        "#{build_path_base(bucket, folder_name, partition_path)}/**/*.parquet"
       end
 
       # @param bucket [String]

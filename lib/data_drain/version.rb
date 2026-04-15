@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
 module DataDrain
-  VERSION = "0.3.0"
+  # @return [String] versión semver de la gema
+  VERSION = "0.3.1"
 end

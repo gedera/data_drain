@@ -2,10 +2,10 @@ name: Ruby
 
 on:
   push:
-    branches:
-      - master
+    branches: [main]
 
   pull_request:
+    branches: [main]
 
 jobs:
   build:
@@ -14,9 +14,9 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     strategy:
+      fail-fast: false
       matrix:
-        ruby:
-          - '3.4.4'
+        ruby: ["3.2", "3.3", "3.4"]
 
     steps:
       - uses: actions/checkout@v4
@@ -38,5 +38,12 @@ jobs:
           sudo ldconfig
       - name: Install gems
         run: bundle install --jobs 4 --retry 3
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/rubocop_cache
+          key: rubocop-${{ matrix.ruby }}-${{ hashFiles('.rubocop.yml') }}
+          restore-keys: rubocop-${{ matrix.ruby }}-
+      - name: Run RuboCop
+        run: bundle exec rubocop --no-color
       - name: Run tests
         run: bundle exec rspec

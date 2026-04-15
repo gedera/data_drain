@@ -7,6 +7,8 @@ module DataDrain
   # Este módulo es genérico y puede ser utilizado en otras gemas.
   # @api private
   module Observability
+    # Regex para detectar claves sensibles en logs y enmascararlas preventivamente.
+    # @!visibility private
     SENSITIVE_KEY_PATTERN = /password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i
 
     private

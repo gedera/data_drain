@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
+require "aws-sdk-s3"
+
 module DataDrain
   module Storage
+    # Adaptador de almacenamiento para Amazon S3.
+    # Configura credenciales en DuckDB y provee destrucción de particiones vía AWS SDK.
     class S3 < Base
       # Carga la extensión httpfs en DuckDB e inyecta las credenciales de AWS.
       # Si aws_access_key_id y aws_secret_access_key están seteados, usa
@@ -19,9 +23,7 @@ module DataDrain
       # @param partition_path [String, nil]
       # @return [String]
       def build_path(bucket, folder_name, partition_path)
-        base = File.join(bucket, folder_name)
-        base = File.join(base, partition_path) if partition_path && !partition_path.empty?
-        "s3://#{base}/**/*.parquet"
+        "s3://#{build_path_base(bucket, folder_name, partition_path)}/**/*.parquet"
       end
 
       # @param bucket [String]

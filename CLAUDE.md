@@ -61,6 +61,20 @@ La telemetría debe ser estructurada (KV) para ser procesada por `exis_ray`.
 - **Duraciones:** Usar siempre `Process.clock_gettime(Process::CLOCK_MONOTONIC)`.
 - **Sensibilidad:** `Observability#safe_log` filtra claves con regex `/password|passwd|pass|secret|token|api_key|apikey|auth|credential|private_key/i` → `[FILTERED]`.
 
+### DEBUG en bloque (obligatorio)
+
+Usar siempre forma de bloque para evitar costo de serialización cuando DEBUG está off:
+
+**Correcto:**
+```ruby
+logger.debug { "query=#{expensive_serialize(obj)}" }
+```
+
+**Incorrecto** — evalúa siempre aunque DEBUG esté off:
+```ruby
+logger.debug("query=#{expensive_serialize(obj)}")
+```
+
 ## Código Ruby
 
 - Todo código nuevo o modificado debe pasar `bundle exec rubocop` sin ofensas

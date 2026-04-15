@@ -121,6 +121,20 @@ Migrar a tabla particionada cambia DataDrain de "DELETE masivo throttled" a
 DataDrain no detecta particiones automáticamente (futuro item). Hoy el
 operador decide.
 
+## Tuning de parámetros DataDrain por tamaño
+
+| Filas tabla | `batch_size` | `throttle_delay` | `vacuum_after_purge` | `slow_batch_threshold_s` |
+|------------|-------------|-----------------|---------------------|-------------------------|
+| <1M | 5000 | 0.1 | false | 30 |
+| 1M-100M | 5000 | 0.5 | true | 30 |
+| 100M-1B | 10000 | 1.0 | true | 60 |
+| >1B | migrar a particionamiento (ver arriba) | | | |
+
+Contexto operacional:
+- **OLTP concurrente**: `throttle_delay` alto (≥0.5s) para no saturar la DB.
+- **Tablas frías** (sin queries de usuarios): `throttle_delay` 0 OK.
+- **`slow_batch_threshold_s`** alto en tablas grandes porque cada batch tarda más legítimamente.
+
 ## Referencias
 
 - Skill: `.agents/skills/postgresql-optimization/SKILL.md`

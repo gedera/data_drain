@@ -3,6 +3,7 @@
 require "json"
 
 module DataDrain
+  # Tipos personalizados para ActiveModel registrados por DataDrain.
   module Types
     # Tipo personalizado para ActiveModel que maneja la conversión de
     # cadenas JSON de DuckDB hacia Hashes de Ruby.

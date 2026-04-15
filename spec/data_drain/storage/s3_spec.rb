@@ -90,23 +90,18 @@ RSpec.describe DataDrain::Storage::S3 do
   end
 
   describe "#destroy_partitions" do
-    let(:s3_object_struct) { Struct.new(:key) }
+    let(:s3_client) { Aws::S3::Client.new(stub_responses: true, region: "us-east-1") }
 
     before do
-      stub_const("Aws::S3::Client", Class.new do
-        def initialize(**_opts); end
-      end)
+      allow(Aws::S3::Client).to receive(:new).and_return(s3_client)
     end
 
     it "arma prefix con folder y primera partition key" do
-      s3_client_instance = double("s3_client")
-      allow(s3_client_instance).to receive(:list_objects_v2) do |**opts|
-        expect(opts[:bucket]).to eq("my-bucket")
-        expect(opts[:prefix]).to eq("versions/isp_id=42/")
-        []
-      end
-      allow(s3_client_instance).to receive(:delete_objects)
-      allow(Aws::S3::Client).to receive(:new).and_return(s3_client_instance)
+      s3_client.stub_responses(:list_objects_v2, lambda { |context|
+        expect(context.params[:bucket]).to eq("my-bucket")
+        expect(context.params[:prefix]).to eq("versions/isp_id=42/")
+        { contents: [] }
+      })
 
       adapter.destroy_partitions(
         "my-bucket", "versions", %i[isp_id year month], { isp_id: 42 }
@@ -114,33 +109,31 @@ RSpec.describe DataDrain::Storage::S3 do
     end
 
     it "borra objetos que matchean el pattern completo" do
-      s3_client_instance = double("s3_client")
-      obj1 = s3_object_struct.new("versions/isp_id=42/year=2026/month=3/data.parquet")
-      obj2 = s3_object_struct.new("versions/isp_id=42/year=2026/month=3/metadata.parquet")
-      stub_list = double("list_response", contents: [obj1, obj2])
+      s3_client.stub_responses(:list_objects_v2, {
+                                 contents: [
+                                   { key: "versions/isp_id=42/year=2026/month=3/data.parquet" },
+                                   { key: "versions/isp_id=42/year=2026/month=3/metadata.parquet" }
+                                 ]
+                               })
 
-      allow(s3_client_instance).to receive(:list_objects_v2).and_return([stub_list])
-      deleted_objects = []
-      allow(s3_client_instance).to receive(:delete_objects) do |**opts|
-        deleted_objects.concat(opts[:delete][:objects])
-      end
-      allow(Aws::S3::Client).to receive(:new).and_return(s3_client_instance)
+      deleted_keys = []
+      s3_client.stub_responses(:delete_objects, lambda { |context|
+        deleted_keys.concat(context.params[:delete][:objects].map { |o| o[:key] })
+        { deleted: deleted_keys.map { |k| { key: k } } }
+      })
 
       adapter.destroy_partitions(
         "my-bucket", "versions", %i[isp_id year month], { isp_id: 42, year: 2026, month: 3 }
       )
 
-      expect(deleted_objects.map { |o| o[:key] }).to match_array([
-                                                                   "versions/isp_id=42/year=2026/month=3/data.parquet",
-                                                                   "versions/isp_id=42/year=2026/month=3/metadata.parquet"
-                                                                 ])
+      expect(deleted_keys).to match_array(
+        ["versions/isp_id=42/year=2026/month=3/data.parquet",
+         "versions/isp_id=42/year=2026/month=3/metadata.parquet"]
+      )
     end
 
     it "retorna 0 si no hay objetos para borrar" do
-      s3_client_instance = double("s3_client")
-      allow(s3_client_instance).to receive(:list_objects_v2)
-        .and_return([double("list_response", contents: [])])
-      allow(Aws::S3::Client).to receive(:new).and_return(s3_client_instance)
+      s3_client.stub_responses(:list_objects_v2, { contents: [] })
 
       result = adapter.destroy_partitions(
         "my-bucket", "versions", [:isp_id], { isp_id: 99 }
@@ -149,17 +142,18 @@ RSpec.describe DataDrain::Storage::S3 do
     end
 
     it "filtra objetos que no matchean el pattern" do
-      s3_client_instance = double("s3_client")
-      obj1 = s3_object_struct.new("versions/isp_id=42/year=2026/month=3/data.parquet")
-      obj2 = s3_object_struct.new("versions/isp_id=99/year=2026/month=3/data.parquet")
-      stub_list = double("list_response", contents: [obj1, obj2])
+      s3_client.stub_responses(:list_objects_v2, {
+                                 contents: [
+                                   { key: "versions/isp_id=42/year=2026/month=3/data.parquet" },
+                                   { key: "versions/isp_id=99/year=2026/month=3/data.parquet" }
+                                 ]
+                               })
 
-      allow(s3_client_instance).to receive(:list_objects_v2).and_return([stub_list])
       deleted_keys = []
-      allow(s3_client_instance).to receive(:delete_objects) do |**opts|
-        deleted_keys.concat(opts[:delete][:objects].map { |o| o[:key] })
-      end
-      allow(Aws::S3::Client).to receive(:new).and_return(s3_client_instance)
+      s3_client.stub_responses(:delete_objects, lambda { |context|
+        deleted_keys.concat(context.params[:delete][:objects].map { |o| o[:key] })
+        { deleted: deleted_keys.map { |k| { key: k } } }
+      })
 
       adapter.destroy_partitions(
         "my-bucket", "versions", %i[isp_id year month], { isp_id: 42, year: 2026, month: 3 }

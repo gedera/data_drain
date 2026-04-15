@@ -1,5 +1,37 @@
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-15
+
+### BREAKING (preventivo)
+- `required_ruby_version` bumpeado a `">= 3.2"` (Ruby 3.0 y 3.1 están EOL desde 2024-03 y 2025-03 respectivamente).
+
+### Refactor
+- Extraído `Storage::Base#build_path_base` para eliminar duplicación entre Local y S3. (item 13)
+- Queries SQL internas adoptan `count()` friendly syntax de DuckDB en Engine y FileIngestor. (item 16)
+
+### Tests
+- 37 ofensas RuboCop en `spec/` arregladas; RuboCop corre en todo el proyecto. (item 17)
+- Tests GlueRunner migrados de `stub_const` a `Aws::Glue::Client.stub_responses` nativo. Tests S3 mantienen `stub_const` por falta de XML parser disponible localmente. (item 19)
+- SimpleCov `minimum_coverage` subido a 90% (cobertura real 97.5%). (item 23)
+
+### CI
+- Matrix Ruby 3.2 / 3.3 / 3.4 en CI. (item 18)
+- RuboCop agregado al workflow. (item 14)
+- Fix: workflow trigger corregido de `master` a `main`. (item 14)
+- Cache de RuboCop por Ruby version + hash de config (ahorra ~25s por run). (item 22)
+- Badge de CI en README. (item 24)
+
+### Docs
+- YARD coverage 90.79% → 100%: Configuration, Observability, Observability::Timing, Errors, Storage::S3, Types, Validations, VERSION. (item 12)
+- CLAUDE.md: sección DEBUG en bloque obligatoria con ejemplo correcto/incorrecto. (item 15)
+- `skill/references/postgres-tuning.md`: nueva sección "Tuning de parámetros DataDrain por tamaño" con tabla de `batch_size`, `throttle_delay`, `vacuum_after_purge` y `slow_batch_threshold_s` según cantidad de filas. (item 15)
+- `skill/references/antipatrones.md`: item 11 (DEBUG sin bloque) ampliado con ejemplo real de DataDrain. (item 15)
+
+### RuboCop hardening
+- `NewCops: disable` y cops pre-existentes deshabilitados en `.rubocop.yml` para evitar regressions.
+- `Metrics/BlockLength` excluye `spec/**/*_spec.rb` y `data_drain.gemspec`.
+- `Naming/VariableNumber` con `AllowedIdentifiers` para fixtures de tests `expected_partition_42/99`.
+
 ## [0.3.0] - 2026-04-15
 
 ### Refactor

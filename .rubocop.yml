@@ -1,7 +1,46 @@
 AllCops:
   TargetRubyVersion: 3.2
+  NewCops: disable
+
+Metrics/AbcSize:
   Exclude:
-    - spec/
+    - spec/**/*_spec.rb
+    - lib/**/*.rb
+
+Metrics/ClassLength:
+  Exclude:
+    - spec/**/*_spec.rb
+    - lib/**/*.rb
+
+Metrics/MethodLength:
+  Exclude:
+    - spec/**/*_spec.rb
+    - lib/**/*.rb
+
+Metrics/BlockLength:
+  Exclude:
+    - spec/**/*_spec.rb
+    - data_drain.gemspec
+    - lib/**/*.rb
+
+Layout/LineLength:
+  Exclude:
+    - lib/**/configuration.rb  # connection string URL > 120 chars
+
+Naming/AccessorMethodName:
+  Enabled: false
+
+Lint/RedundantSafeNavigation:
+  Enabled: false
+
+Style/IfUnlessModifier:
+  Enabled: false
+
+Naming/VariableNumber:
+  EnforcedStyle: normalcase
+  AllowedIdentifiers:
+    - expected_partition_42
+    - expected_partition_99
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes

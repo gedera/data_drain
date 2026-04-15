@@ -54,6 +54,18 @@ module DataDrain
       def destroy_partitions(bucket, folder_name, partition_keys, partitions)
         raise NotImplementedError, "#{self.class} debe implementar #destroy_partitions"
       end
+
+      protected
+
+      # @param bucket [String]
+      # @param folder_name [String]
+      # @param partition_path [String, nil]
+      # @return [String] path sin prefix de protocolo ni sufijo glob
+      def build_path_base(bucket, folder_name, partition_path)
+        base = File.join(bucket, folder_name)
+        base = File.join(base, partition_path) if partition_path && !partition_path.empty?
+        base
+      end
     end
   end
 end
