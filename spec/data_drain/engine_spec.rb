@@ -177,4 +177,84 @@ RSpec.describe DataDrain::Engine do
 
     expect(engine.call).to be false
   end
+
+  describe "VACUUM post-purge" do
+    it "no ejecuta VACUUM cuando vacuum_after_purge es false (default)" do
+      engine = described_class.new(base_options.merge(table_name: "versions"))
+
+      allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+      allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+      allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+      allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+      allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+      allow(mock_pg_result).to receive(:cmd_tuples).and_return(0)
+      allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+      expect(mock_pg_conn).not_to receive(:exec).with(/VACUUM/)
+      engine.call
+    end
+
+    it "ejecuta VACUUM ANALYZE cuando vacuum_after_purge es true y hay deletes" do
+      DataDrain.configure { |c| c.vacuum_after_purge = true }
+      engine = described_class.new(base_options.merge(table_name: "versions"))
+
+      allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+      allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+      allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+      allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+      allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+      allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0)
+      allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+      dead_result = instance_double(PG::Result)
+      allow(dead_result).to receive(:first).and_return({ "n_dead_tup" => "500" })
+      allow(mock_pg_conn).to receive(:exec_params).with(/pg_stat_user_tables/, anything).and_return(dead_result)
+      expect(mock_pg_conn).to receive(:exec).with(/VACUUM ANALYZE versions/)
+
+      engine.call
+    ensure
+      DataDrain.reset_configuration!
+    end
+
+    it "no ejecuta VACUUM si total_deleted es 0" do
+      DataDrain.configure { |c| c.vacuum_after_purge = true }
+      engine = described_class.new(base_options.merge(table_name: "versions"))
+
+      allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+      allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+      allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+      allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+      allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+      allow(mock_pg_result).to receive(:cmd_tuples).and_return(0)
+      allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+      expect(mock_pg_conn).not_to receive(:exec).with(/VACUUM/)
+
+      engine.call
+    ensure
+      DataDrain.reset_configuration!
+    end
+
+    it "captura PG::Error y loguea engine.vacuum_error sin levantar" do
+      DataDrain.configure { |c| c.vacuum_after_purge = true }
+      engine = described_class.new(base_options.merge(table_name: "versions"))
+
+      allow(mock_duckdb).to receive(:query).with(/INSTALL postgres|SET max_memory|SET temp_directory|ATTACH/)
+      allow(mock_duckdb).to receive(:query).with(/SELECT row_count FROM postgres_query/).and_return([[100]])
+      allow(mock_duckdb).to receive(:query).with(/COPY \(/)
+      allow(mock_duckdb).to receive(:query).with(/FROM read_parquet/).and_return([[100]])
+      allow(mock_pg_conn).to receive(:exec).with(/SET idle_in_transaction_session_timeout/)
+      allow(mock_pg_result).to receive(:cmd_tuples).and_return(100, 0)
+      allow(mock_pg_conn).to receive(:exec).with(/DELETE FROM versions/).and_return(mock_pg_result)
+
+      dead_result = instance_double(PG::Result)
+      allow(dead_result).to receive(:first).and_return({ "n_dead_tup" => "500" })
+      allow(mock_pg_conn).to receive(:exec_params).with(/pg_stat_user_tables/, anything).and_return(dead_result)
+      allow(mock_pg_conn).to receive(:exec).with(/VACUUM ANALYZE/).and_raise(PG::Error, "lock timeout")
+
+      expect { engine.call }.not_to raise_error
+    ensure
+      DataDrain.reset_configuration!
+    end
+  end
 end

@@ -10,6 +10,7 @@ module DataDrain
   # delegando la interacción del almacenamiento al adaptador configurado.
   class Engine
     include Observability
+    include Observability::Timing
     # Inicializa una nueva instancia del motor de extracción.
     #
     # @param options [Hash] Diccionario de configuración para la extracción.
@@ -70,19 +71,6 @@ module DataDrain
     end
 
     private
-
-    # @api private
-    def monotonic
-      Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    end
-
-    # @api private
-    def timed(step_name)
-      t = monotonic
-      result = yield
-      @durations[step_name] = monotonic - t
-      result
-    end
 
     # @api private
     def log_start
@@ -246,9 +234,54 @@ module DataDrain
         conn.exec("SET idle_in_transaction_session_timeout = #{@config.idle_in_transaction_session_timeout};")
       end
 
-      purge_loop(conn)
+      total_deleted = purge_loop(conn)
+
+      vacuum_if_needed(conn, total_deleted)
     ensure
       conn&.close
+    end
+
+    # @api private
+    def vacuum_if_needed(conn, total_deleted)
+      return unless @config.vacuum_after_purge
+      return if total_deleted.zero?
+
+      vacuum_start = monotonic
+      dead_before = fetch_dead_tuple_count(conn)
+
+      begin
+        conn.exec("VACUUM ANALYZE #{@table_name};")
+      rescue PG::Error => e
+        safe_log(:warn, "engine.vacuum_error", {
+          table: @table_name,
+          dead_tuples_before: dead_before,
+          rows_deleted_count: total_deleted,
+          duration_s: (monotonic - vacuum_start).round(2)
+        }.merge(exception_metadata(e)))
+        return
+      end
+
+      dead_after = fetch_dead_tuple_count(conn)
+      vacuum_duration = monotonic - vacuum_start
+
+      safe_log(:info, "engine.vacuum_complete", {
+                 table: @table_name,
+                 duration_s: vacuum_duration.round(2),
+                 dead_tuples_before: dead_before,
+                 dead_tuples_after: dead_after,
+                 rows_deleted_count: total_deleted
+               })
+    end
+
+    # @api private
+    def fetch_dead_tuple_count(conn)
+      result = conn.exec_params(
+        "SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = $1",
+        [@table_name]
+      )
+      result.first&.dig("n_dead_tup")&.to_i || 0
+    rescue PG::Error
+      -1
     end
 
     # @api private
