@@ -3,27 +3,27 @@ Script de AWS Glue (PySpark) compatible con DataDrain::GlueRunner.
 
 Para crear el Glue Job programmatically (en vez de la consola):
 
-    # 1. Subir script a S3
-    # aws s3 cp glue_pyspark_example.py s3://my-bucket/scripts/
-
-    # 2. Crear job idempotentemente
+    # Opcion moderna: script local subido por la gema (v0.5.0+)
     DataDrain::GlueRunner.ensure_job(
       "my-export-job",
+      script_path: "docs/glue_pyspark_example.py",
+      script_bucket: "my-bucket",
+      script_folder: "scripts",
       role_arn: "arn:aws:iam::123:role/GlueServiceRole",
-      script_location: "s3://my-bucket/scripts/glue_pyspark_example.py",
-      glue_version: "4.0",
       worker_type: "G.1X",
       number_of_workers: 10,
       timeout: 1440
     )
+    # -> Sube este archivo a s3://my-bucket/scripts/glue_pyspark_example.py
+    # -> Crea el Job apuntando a ese path
 
-    # 3. Ejecutar
+    # Ejecutar
     DataDrain::GlueRunner.run_and_wait("my-export-job", { "--start_date" => "2025-01-01", ... })
 
 Argumentos requeridos del job: JOB_NAME, start_date, end_date, s3_bucket, s3_folder,
 db_url, db_user, db_password, db_table, partition_by.
 
-Personalizar la sección de columnas derivadas según las partition_keys de cada tabla.
+Personalizar la seccion de columnas derivadas segun las partition_keys de cada tabla.
 """
 
 import sys

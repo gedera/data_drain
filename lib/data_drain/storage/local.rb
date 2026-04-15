@@ -27,6 +27,19 @@ module DataDrain
         "#{build_path_base(bucket, folder_name, partition_path)}/**/*.parquet"
       end
 
+      # @param local_path [String]
+      # @param bucket [String] Directorio destino
+      # @param s3_key [String] Path relativo dentro del bucket
+      # @param content_type [String, nil] Ignorado en modo local
+      # @return [String] Path absoluto al archivo destino
+      def upload_file(local_path, bucket, s3_key, content_type: nil)
+        _ = content_type
+        dest_path = File.join(bucket, s3_key)
+        FileUtils.mkdir_p(File.dirname(dest_path))
+        FileUtils.cp(local_path, dest_path)
+        dest_path
+      end
+
       # @param bucket [String]
       # @param folder_name [String]
       # @param partition_keys [Array<Symbol>]

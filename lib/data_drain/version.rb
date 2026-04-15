@@ -2,5 +2,5 @@
 
 module DataDrain
   # @return [String] versión semver de la gema
-  VERSION = "0.4.0"
+  VERSION = "0.5.0"
 end

@@ -40,18 +40,29 @@ module DataDrain
       client.get_job(job_name: job_name).job
     end
 
-    def self.create_job(job_name, role_arn:, script_location:, command_name: "glueetl",
-                        default_arguments: {}, description: nil, worker_type: nil, number_of_workers: nil,
-                        timeout: 2880, max_retries: 0, allocated_capacity: nil, glue_version: nil)
+    def self.create_job(job_name, role_arn:, script_location: nil, script_path: nil,
+                        script_bucket: nil, script_folder: "scripts", script_filename: nil,
+                        command_name: "glueetl", default_arguments: {}, description: nil,
+                        worker_type: nil, number_of_workers: nil, timeout: 2880,
+                        max_retries: 0, allocated_capacity: nil, glue_version: nil)
       @logger = DataDrain.configuration.logger
       DataDrain::Validations.validate_glue_name!(:job_name, job_name)
+
+      final_script_location = resolve_script_location(
+        script_location: script_location,
+        script_path: script_path,
+        script_bucket: script_bucket,
+        script_folder: script_folder,
+        script_filename: script_filename
+      )
+
       opts = {
         name: job_name,
         role: role_arn,
         command: {
           name: command_name,
           python_version: "3",
-          script_location: script_location
+          script_location: final_script_location
         }
       }
       opts[:default_arguments] = default_arguments unless default_arguments.empty?
@@ -125,17 +136,27 @@ module DataDrain
       raise
     end
 
-    def self.ensure_job(job_name, role_arn:, script_location:, command_name: "glueetl",
-                        default_arguments: {}, description: nil, worker_type: nil,
-                        number_of_workers: nil, timeout: 2880, max_retries: 0,
-                        allocated_capacity: nil, glue_version: nil)
+    def self.ensure_job(job_name, role_arn:, script_location: nil, script_path: nil,
+                        script_bucket: nil, script_folder: "scripts", script_filename: nil,
+                        command_name: "glueetl", default_arguments: {}, description: nil,
+                        worker_type: nil, number_of_workers: nil, timeout: 2880,
+                        max_retries: 0, allocated_capacity: nil, glue_version: nil)
       @logger = DataDrain.configuration.logger
+
+      final_script_location = resolve_script_location(
+        script_location: script_location,
+        script_path: script_path,
+        script_bucket: script_bucket,
+        script_folder: script_folder,
+        script_filename: script_filename
+      )
+
       if job_exists?(job_name)
         current = get_job(job_name)
         desired = {
           role: role_arn,
           command_name: command_name,
-          script_location: script_location,
+          script_location: final_script_location,
           default_arguments: default_arguments,
           description: description,
           worker_type: worker_type,
@@ -151,7 +172,7 @@ module DataDrain
         else
           safe_log(:info, "glue_runner.job_exists", { job: job_name })
           update_job(job_name, role_arn: role_arn, command_name: command_name,
-                               script_location: script_location, default_arguments: default_arguments,
+                               script_location: final_script_location, default_arguments: default_arguments,
                                description: description, worker_type: worker_type,
                                number_of_workers: number_of_workers, timeout: timeout,
                                max_retries: max_retries, allocated_capacity: allocated_capacity,
@@ -159,7 +180,7 @@ module DataDrain
         end
       else
         safe_log(:info, "glue_runner.job_created", { job: job_name })
-        create_job(job_name, role_arn: role_arn, script_location: script_location,
+        create_job(job_name, role_arn: role_arn, script_location: final_script_location,
                              command_name: command_name, default_arguments: default_arguments,
                              description: description, worker_type: worker_type,
                              number_of_workers: number_of_workers, timeout: timeout,
@@ -183,6 +204,56 @@ module DataDrain
       changed
     end
     private_class_method :changed_fields
+
+    def self.resolve_script_location(script_location:, script_path:, script_bucket:, script_folder:, script_filename:)
+      both_set = script_location && script_path
+      raise DataDrain::ConfigurationError, "provee script_location o script_path, no ambos" if both_set
+
+      return script_location if script_location
+      raise ArgumentError, "script_location o script_path es requerido" unless script_path
+      raise DataDrain::ConfigurationError, "script_path requiere script_bucket" unless script_bucket
+
+      upload_script(
+        local_path: script_path,
+        bucket: script_bucket,
+        folder: script_folder,
+        filename: script_filename
+      )
+    end
+    private_class_method :resolve_script_location
+
+    def self.upload_script(local_path:, bucket:, folder: "scripts", filename: nil)
+      @logger = DataDrain.configuration.logger
+
+      unless File.exist?(local_path)
+        raise DataDrain::ConfigurationError,
+              "Script local '#{local_path}' no existe"
+      end
+
+      actual_filename = filename || File.basename(local_path)
+      s3_key = "#{folder.chomp("/")}/#{actual_filename}"
+      bytes = File.size(local_path)
+
+      adapter = DataDrain::Storage.adapter
+      unless adapter.is_a?(DataDrain::Storage::S3)
+        raise DataDrain::ConfigurationError,
+              "upload_script requiere storage_mode = :s3, actual: #{DataDrain.configuration.storage_mode}"
+      end
+
+      s3_path = adapter.upload_file(local_path, bucket, s3_key, content_type: "text/x-python")
+
+      safe_log(:info, "glue_runner.script_uploaded", {
+                 local_path: local_path,
+                 s3_path: s3_path,
+                 bytes: bytes
+               })
+
+      s3_path
+    rescue Aws::S3::Errors::ServiceError => e
+      safe_log(:error, "glue_runner.script_upload_error",
+               { local_path: local_path, bucket: bucket }.merge(exception_metadata(e)))
+      raise
+    end
 
     def self.run_and_wait(job_name, arguments = {}, polling_interval: 30, max_wait_seconds: nil)
       config = DataDrain.configuration

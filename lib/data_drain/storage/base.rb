@@ -55,6 +55,18 @@ module DataDrain
         raise NotImplementedError, "#{self.class} debe implementar #destroy_partitions"
       end
 
+      # Sube un archivo local al storage.
+      #
+      # @param local_path [String]
+      # @param bucket [String]
+      # @param s3_key [String] key relativo (ej. "scripts/export.py")
+      # @param content_type [String, nil]
+      # @return [String] URI completo del archivo subido
+      # @raise [NotImplementedError]
+      def upload_file(local_path, bucket, s3_key, content_type: nil)
+        raise NotImplementedError, "#{self.class} debe implementar #upload_file"
+      end
+
       protected
 
       # @param bucket [String]

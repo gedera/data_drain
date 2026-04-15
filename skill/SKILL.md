@@ -70,7 +70,7 @@ DataDrain resuelve el ciclo de vida de datos históricos en bases relacionales c
 
 - Ruby `>= 3.2.0`
 - Runtime: `activemodel >= 6.0`, `duckdb ~> 1.4`, `pg >= 1.2`, `aws-sdk-s3 ~> 1.114`, `aws-sdk-glue ~> 1.0`
-- Versión actual: `0.4.0`
+- Versión actual: `0.5.0`
 
 ## API Pública (resumen)
 
@@ -133,11 +133,13 @@ DataDrain::GlueRunner.job_exists?("my-job")  # => true/false
 # Obtener config completa
 job = DataDrain::GlueRunner.get_job("my-job")  # => Aws::Glue::Types::Job
 
-# Crear job
+# Crear job con script local (v0.5.0+)
 job = DataDrain::GlueRunner.create_job(
   "my-job",
   role_arn: "arn:aws:iam::123:role/GlueRole",
-  script_location: "s3://bucket/script.py",
+  script_path: "scripts/glue/export.py",  # local → S3 automático
+  script_bucket: "my-bucket",
+  script_folder: "scripts",
   timeout: 1440,
   max_retries: 2
 )
@@ -146,7 +148,8 @@ job = DataDrain::GlueRunner.create_job(
 job = DataDrain::GlueRunner.ensure_job(
   "my-job",
   role_arn: "arn:aws:iam::123:role/GlueRole",
-  script_location: "s3://bucket/script.py"
+  script_path: "scripts/glue/export.py",
+  script_bucket: "my-bucket"
 )
 
 # Eliminar job (idempotente)
@@ -199,6 +202,28 @@ No. La gema NO emite `source=` manualmente — lo inyecta automáticamente `exis
 ### ¿Qué formato tienen los logs?
 
 `component=data_drain event=<clase>.<suceso> [campos KV]`. Tiempos con sufijo `_s` y valor float. Contadores con `_count` y valor integer. Sin unidades en los valores. Detalle en [Eventos y Telemetría](references/eventos-telemetria.md).
+
+### ¿Cómo subo un script Glue desde mi repo?
+
+Desde v0.5.0 podés usar `script_path:` en lugar de `script_location:`:
+
+```ruby
+DataDrain::GlueRunner.ensure_job(
+  "my-export-job",
+  script_path: "scripts/glue/export.py",
+  script_bucket: "my-bucket",
+  script_folder: "scripts",
+  role_arn: ENV["GLUE_ROLE_ARN"]
+)
+```
+
+La gema sube el script a S3 usando el `Storage::S3` adapter existente
+(con `credential_chain` si tenés IAM role). **Requiere `storage_mode = :s3`**.
+Si `storage_mode = :local`, levanta `ConfigurationError`.
+
+**Overwrite:** cada invocación sobrescribe el archivo en S3. Útil para que
+el script siga al código del repo. Si necesitás versionar, usar `script_filename:`
+con hash o timestamp.
 
 ## Errores
 

@@ -310,6 +310,208 @@ RSpec.describe DataDrain::GlueRunner do
     end
   end
 
+  describe ".upload_script" do
+    let(:temp_script) { Tempfile.new(["export", ".py"], binmode: true) }
+
+    before do
+      temp_script.write("# python")
+      temp_script.close
+      DataDrain.configure do |c|
+        c.storage_mode = :s3
+        c.aws_region = "us-east-1"
+      end
+      DataDrain::Storage.reset_adapter!
+    end
+
+    after do
+      temp_script.unlink
+      DataDrain::Storage.reset_adapter!
+    end
+
+    it "sube el script y retorna S3 path" do
+      allow(DataDrain::Storage.adapter).to receive(:upload_file)
+        .and_return("s3://my-bucket/scripts/export.py")
+
+      result = described_class.upload_script(
+        local_path: temp_script.path,
+        bucket: "my-bucket",
+        folder: "scripts"
+      )
+
+      expect(result).to eq("s3://my-bucket/scripts/export.py")
+    end
+
+    it "usa filename override si se provee" do
+      expected_key = "scripts/custom_name.py"
+      expect(DataDrain::Storage.adapter).to receive(:upload_file)
+        .with(temp_script.path, "my-bucket", expected_key, content_type: "text/x-python")
+        .and_return("s3://my-bucket/#{expected_key}")
+
+      described_class.upload_script(
+        local_path: temp_script.path,
+        bucket: "my-bucket",
+        filename: "custom_name.py"
+      )
+    end
+
+    it "levanta ConfigurationError si local_path no existe" do
+      expect do
+        described_class.upload_script(local_path: "/nonexistent.py", bucket: "b")
+      end.to raise_error(DataDrain::ConfigurationError, /no existe/)
+    end
+
+    it "levanta ConfigurationError si storage_mode es :local" do
+      DataDrain.configure { |c| c.storage_mode = :local }
+      DataDrain::Storage.reset_adapter!
+
+      expect do
+        described_class.upload_script(local_path: temp_script.path, bucket: "b")
+      end.to raise_error(DataDrain::ConfigurationError, /storage_mode/)
+    end
+
+    it "emite glue_runner.script_uploaded con bytes + s3_path" do
+      allow(DataDrain::Storage.adapter).to receive(:upload_file)
+        .and_return("s3://my-bucket/scripts/export.py")
+
+      io = StringIO.new
+      test_logger = Logger.new(io)
+      DataDrain.configure { |c| c.logger = test_logger }
+
+      described_class.upload_script(local_path: temp_script.path, bucket: "my-bucket")
+
+      log_output = io.string
+      expect(log_output).to include("glue_runner.script_uploaded")
+      expect(log_output).to include("bytes=")
+    end
+
+    it "emite glue_runner.script_upload_error y propaga si falla" do
+      allow(DataDrain::Storage.adapter).to receive(:upload_file)
+        .and_raise(Aws::S3::Errors::ServiceError.new(nil, "AccessDenied"))
+
+      expect do
+        described_class.upload_script(local_path: temp_script.path, bucket: "b")
+      end.to raise_error(Aws::S3::Errors::ServiceError)
+    end
+  end
+
+  describe ".create_job with script_path" do
+    before do
+      allow(described_class).to receive(:upload_script)
+        .and_return("s3://my-bucket/scripts/export.py")
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:get_job, { job: { name: "my-job" } })
+    end
+
+    it "sube script y crea job con script_location resultante" do
+      expect(described_class).to receive(:upload_script).with(
+        local_path: "scripts/glue/export.py",
+        bucket: "my-bucket",
+        folder: "scripts",
+        filename: nil
+      )
+
+      described_class.create_job(
+        "my-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_path: "scripts/glue/export.py",
+        script_bucket: "my-bucket"
+      )
+    end
+
+    it "levanta ConfigurationError si script_path sin script_bucket" do
+      expect do
+        described_class.create_job(
+          "my-job",
+          role_arn: "arn:aws:iam::123:role/GlueRole",
+          script_path: "/local/script.py"
+        )
+      end.to raise_error(DataDrain::ConfigurationError, /script_bucket/)
+    end
+
+    it "levanta ConfigurationError si script_path y script_location ambos" do
+      expect do
+        described_class.create_job(
+          "my-job",
+          role_arn: "arn:aws:iam::123:role/GlueRole",
+          script_path: "/local/script.py",
+          script_location: "s3://b/s.py",
+          script_bucket: "b"
+        )
+      end.to raise_error(DataDrain::ConfigurationError, /no ambos/)
+    end
+
+    it "levanta ArgumentError si no se provee ni script_location ni script_path" do
+      expect do
+        described_class.create_job("my-job", role_arn: "arn:aws:iam::123:role/GlueRole")
+      end.to raise_error(ArgumentError, /requerido/)
+    end
+  end
+
+  describe ".ensure_job with script_path" do
+    before do
+      allow(described_class).to receive(:upload_script)
+        .and_return("s3://my-bucket/scripts/export.py")
+    end
+
+    it "sube script cuando job no existe" do
+      glue_client.stub_responses(:get_job, Aws::Glue::Errors::EntityNotFoundException.new(nil, "not found"))
+      glue_client.stub_responses(:create_job, {})
+      glue_client.stub_responses(:get_job, {
+                                   job: {
+                                     name: "my-job",
+                                     role: "arn:aws:iam::123:role/GlueRole",
+                                     command: { name: "glueetl", script_location: "s3://my-bucket/scripts/export.py" }
+                                   }
+                                 })
+
+      expect(described_class).to receive(:upload_script).with(
+        local_path: "scripts/glue/export.py",
+        bucket: "my-bucket",
+        folder: "scripts",
+        filename: nil
+      )
+
+      described_class.ensure_job(
+        "my-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_path: "scripts/glue/export.py",
+        script_bucket: "my-bucket"
+      )
+    end
+
+    it "sube script y actualiza cuando script_location cambio" do
+      glue_client.stub_responses(:get_job, [
+                                   {
+                                     job: {
+                                       name: "existing-job",
+                                       role: "arn:aws:iam::123:role/GlueRole",
+                                       command: { name: "glueetl", script_location: "s3://my-bucket/scripts/old.py" },
+                                       default_arguments: {}, timeout: 2880, max_retries: 0
+                                     }
+                                   },
+                                   {
+                                     job: {
+                                       name: "existing-job",
+                                       role: "arn:aws:iam::123:role/GlueRole",
+                                       command: { name: "glueetl", script_location: "s3://my-bucket/scripts/new.py" },
+                                       default_arguments: {}, timeout: 2880, max_retries: 0
+                                     }
+                                   }
+                                 ])
+      glue_client.stub_responses(:update_job, {})
+
+      expect(described_class).to receive(:upload_script)
+        .and_return("s3://my-bucket/scripts/new.py")
+
+      described_class.ensure_job(
+        "existing-job",
+        role_arn: "arn:aws:iam::123:role/GlueRole",
+        script_path: "scripts/glue/new.py",
+        script_bucket: "my-bucket"
+      )
+    end
+  end
+
   describe ".changed_fields" do
     let(:current_role) { "arn:aws:iam::123:role/GlueRole" }
     let(:current_command) do
