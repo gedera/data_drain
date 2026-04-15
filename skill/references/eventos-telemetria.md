@@ -115,6 +115,15 @@ Catálogo completo de eventos KV emitidos por DataDrain. Formato Wispro-Observab
 **Nivel:** INFO. Emite antes de `start_job_run`.
 **Campos:** `job`.
 
+### `glue_runner.script_uploaded`
+**Nivel:** INFO. Emite tras subir un script a S3 (v0.5.0+).
+**Campos:** `local_path`, `s3_path`, `bytes`.
+
+### `glue_runner.script_upload_error`
+**Nivel:** ERROR. Emite si el upload a S3 falla (v0.5.0+).
+**Campos:** `local_path`, `bucket`, `error_class`, `error_message`.
+**Consecuencia:** propaga el `Aws::S3::Errors::ServiceError`.
+
 ### `glue_runner.job_exists`
 **Nivel:** INFO. Emite en `ensure_job` cuando el job ya existe y se actualiza.
 **Campos:** `job`.

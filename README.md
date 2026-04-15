@@ -115,11 +115,13 @@ DataDrain::GlueRunner.job_exists?("my-glue-export-job")
 job = DataDrain::GlueRunner.get_job("my-glue-export-job")
 # => Aws::Glue::Types::Job (Name, Command, DefaultArguments, etc.)
 
-# Crear un job
+# Crear un job con script local (v0.5.0+)
 job = DataDrain::GlueRunner.create_job(
   "my-glue-export-job",
   role_arn: "arn:aws:iam::123:role/GlueServiceRole",
-  script_location: "s3://my-bucket/scripts/export.py",
+  script_path: "scripts/glue/export.py",  # local → S3 automático
+  script_bucket: "my-bucket",
+  script_folder: "scripts",
   default_arguments: { "--extra-files" => "s3://my-bucket/scripts/udf.py" },
   timeout: 1440,
   max_retries: 2
@@ -129,8 +131,9 @@ job = DataDrain::GlueRunner.create_job(
 job = DataDrain::GlueRunner.ensure_job(
   "my-glue-export-job",
   role_arn: "arn:aws:iam::123:role/GlueServiceRole",
-  script_location: "s3://my-bucket/scripts/export.py",
-  timeout: 1440
+  script_path: "scripts/glue/export.py",
+  script_bucket: "my-bucket",
+  script_folder: "scripts"
 )
 
 # Eliminar un job
@@ -198,6 +201,7 @@ ArchivedVersion.destroy_all(year: 2024, month: 3)    # un mes globalmente
 ```
 component=data_drain event=engine.complete table=versions duration_s=12.4 export_duration_s=8.1 purge_duration_s=3.9 count=150000
 component=data_drain event=engine.purge_heartbeat table=versions batches_processed_count=100 rows_deleted_count=500000
+component=data_drain event=glue_runner.script_uploaded local_path=scripts/glue/export.py s3_path=s3://my-bucket/scripts/export.py bytes=4521
 component=data_drain event=glue_runner.failed job=my-export-job run_id=jr_abc123 status=FAILED duration_s=301.0
 ```
 
