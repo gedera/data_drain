@@ -5,7 +5,6 @@ require "pg"
 
 module DataDrain
   # Motor principal de extracción y purga de datos (DataDrain).
-  # rubocop:disable Metrics/ClassLength, Metrics/AbcSize, Metrics/MethodLength, Naming/AccessorMethodName
   #
   # Orquesta el flujo ETL desde PostgreSQL hacia un Data Lake analítico
   # delegando la interacción del almacenamiento al adaptador configurado.
@@ -50,70 +49,104 @@ module DataDrain
       @duckdb = database.connect
     end
 
-    # Ejecuta el flujo completo del motor: Setup, Conteo, Exportación (opcional), Verificación y Purga.
-    #
-    # @return [Boolean] `true` si el proceso finalizó con éxito, `false` si falló la integridad.
     def call
-      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      safe_log(:info, "engine.start",
-               { table: @table_name, start_date: @start_date.to_date, end_date: @end_date.to_date })
+      @durations = {}
+      start_time = monotonic
+      log_start
 
       setup_duckdb
+      return skip_empty(start_time) if step_count.zero?
 
-      # 1. Conteo inicial en Postgres
-      step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      @pg_count = get_postgres_count
-      db_query_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
-
-      if @pg_count.zero?
-        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        safe_log(:info, "engine.skip_empty",
-                 { table: @table_name, duration_s: duration.round(2), db_query_duration_s: db_query_duration.round(2) })
-        return true
-      end
-
-      # 2. Exportación
-      export_duration = 0.0
       if @skip_export
         safe_log(:info, "engine.skip_export", { table: @table_name })
       else
-        safe_log(:info, "engine.export_start", { table: @table_name, count: @pg_count })
-        step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        export_to_parquet
-        export_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
+        step_export
       end
+      return integrity_failed(start_time) unless step_verify
 
-      # 3. Verificación de Integridad
-      step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      integrity_ok = verify_integrity
-      integrity_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
-
-      if integrity_ok
-        # 4. Purga en Postgres
-        step_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        purge_from_postgres
-        purge_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - step_start
-
-        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        safe_log(:info, "engine.complete", {
-                   table: @table_name,
-                   duration_s: duration.round(2),
-                   db_query_duration_s: db_query_duration.round(2),
-                   export_duration_s: export_duration.round(2),
-                   integrity_duration_s: integrity_duration.round(2),
-                   purge_duration_s: purge_duration.round(2),
-                   count: @pg_count
-                 })
-        true
-      else
-        duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-        safe_log(:error, "engine.integrity_error",
-                 { table: @table_name, duration_s: duration.round(2), count: @pg_count })
-        false
-      end
+      step_purge
+      log_complete(start_time)
+      true
     end
 
     private
+
+    # @api private
+    def monotonic
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    # @api private
+    def timed(step_name)
+      t = monotonic
+      result = yield
+      @durations[step_name] = monotonic - t
+      result
+    end
+
+    # @api private
+    def log_start
+      safe_log(:info, "engine.start",
+               { table: @table_name, start_date: @start_date.to_date, end_date: @end_date.to_date })
+    end
+
+    # @api private
+    def step_count
+      @pg_count = timed(:db_query) { get_postgres_count }
+      @pg_count
+    end
+
+    # @api private
+    def skip_empty(start_time)
+      duration = monotonic - start_time
+      safe_log(:info, "engine.skip_empty", {
+                 table: @table_name,
+                 duration_s: duration.round(2),
+                 db_query_duration_s: @durations.fetch(:db_query, 0).round(2)
+               })
+      true
+    end
+
+    # @api private
+    def step_export
+      safe_log(:info, "engine.export_start", { table: @table_name, count: @pg_count })
+      timed(:export) { export_to_parquet }
+    end
+
+    # @api private
+    def step_verify
+      timed(:integrity) { verify_integrity }
+    end
+
+    # @api private
+    def step_purge
+      timed(:purge) { purge_from_postgres }
+    end
+
+    # @api private
+    def log_complete(start_time)
+      duration = monotonic - start_time
+      safe_log(:info, "engine.complete", {
+                 table: @table_name,
+                 duration_s: duration.round(2),
+                 db_query_duration_s: @durations.fetch(:db_query, 0).round(2),
+                 export_duration_s: @durations.fetch(:export, 0).round(2),
+                 integrity_duration_s: @durations.fetch(:integrity, 0).round(2),
+                 purge_duration_s: @durations.fetch(:purge, 0).round(2),
+                 count: @pg_count
+               })
+    end
+
+    # @api private
+    def integrity_failed(start_time)
+      duration = monotonic - start_time
+      safe_log(:error, "engine.integrity_error", {
+                 table: @table_name,
+                 duration_s: duration.round(2),
+                 count: @pg_count
+               })
+      false
+    end
 
     # @api private
     # @return [String]
@@ -213,40 +246,54 @@ module DataDrain
         conn.exec("SET idle_in_transaction_session_timeout = #{@config.idle_in_transaction_session_timeout};")
       end
 
+      purge_loop(conn)
+    ensure
+      conn&.close
+    end
+
+    # @api private
+    # @param conn [PG::Connection]
+    # @return [Integer] total de filas borradas
+    def purge_loop(conn)
       batches_processed = 0
       total_deleted = 0
 
       loop do
-        sql = <<~SQL
-          DELETE FROM #{@table_name}
-          WHERE #{@primary_key} IN (
-            SELECT #{@primary_key} FROM #{@table_name}
-            WHERE #{base_where_sql}
-            LIMIT #{@config.batch_size}
-          )
-        SQL
-
-        result = conn.exec(sql)
+        result = conn.exec(build_delete_sql)
         count = result.cmd_tuples
         break if count.zero?
 
         batches_processed += 1
         total_deleted += count
 
-        # Heartbeat cada 100 lotes para monitorear procesos largos de 1TB
-        if (batches_processed % 100).zero?
-          safe_log(:info, "engine.purge_heartbeat", {
-                     table: @table_name,
-                     batches_processed_count: batches_processed,
-                     rows_deleted_count: total_deleted
-                   })
-        end
-
+        emit_heartbeat_if_due(batches_processed, total_deleted)
         sleep(@config.throttle_delay) if @config.throttle_delay.positive?
       end
-    ensure
-      conn&.close
+
+      total_deleted
+    end
+
+    # @api private
+    def emit_heartbeat_if_due(batches_processed, total_deleted)
+      return unless (batches_processed % 100).zero?
+
+      safe_log(:info, "engine.purge_heartbeat", {
+                 table: @table_name,
+                 batches_processed_count: batches_processed,
+                 rows_deleted_count: total_deleted
+               })
+    end
+
+    # @api private
+    def build_delete_sql
+      <<~SQL
+        DELETE FROM #{@table_name}
+        WHERE #{@primary_key} IN (
+          SELECT #{@primary_key} FROM #{@table_name}
+          WHERE #{base_where_sql}
+          LIMIT #{@config.batch_size}
+        )
+      SQL
     end
   end
-  # rubocop:enable Metrics/ClassLength, Metrics/AbcSize, Metrics/MethodLength, Naming/AccessorMethodName
 end
