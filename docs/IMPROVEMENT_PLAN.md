@@ -433,12 +433,13 @@ spec/
 
 #### Item 5 — VACUUM ANALYZE opcional post-purga
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `feat` `perf`
 **Compatibilidad:** backward-compatible (default `false`, opt-in)
 **Estimación:** S (2-3h)
 **Release:** v0.2.1
+**Commit:** `93bf8a8`
 
 ##### Contexto
 
@@ -754,12 +755,13 @@ Contenido:
 
 #### Item 6 — Sandboxing de `Record.connection`
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `security`
 **Compatibilidad:** backward-compatible (con risk de breaking si caller hizo workarounds raros)
 **Estimación:** M (3-4h)
 **Release:** v0.3.0
+**Commit:** `f042c56`
 
 ##### Contexto
 
@@ -800,12 +802,13 @@ Reduce blast radius si alguien intenta inyectar SQL malicioso vía `where_clause
 
 #### Item 10 — Refactor `Engine#call` (CC=13 → ~5)
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `refactor`
 **Compatibilidad:** backward-compatible
 **Estimación:** M (4-6h)
 **Release:** v0.3.0
+**Commit:** `6a06850`
 
 ##### Contexto
 
@@ -878,12 +881,13 @@ Reduce blast radius si alguien intenta inyectar SQL malicioso vía `where_clause
 
 #### Item 11b — Warning runtime de purga lenta sin avance
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P1
 **Tipo:** `feat` `perf`
 **Compatibilidad:** backward-compatible
 **Estimación:** M (3-4h)
 **Release:** v0.3.0
+**Commit:** `d72ec0a`
 
 ##### Contexto
 
@@ -1206,12 +1210,13 @@ v0.2.1 solo corre CI en Ruby 3.4.4. La gema declara `required_ruby_version = ">=
 
 #### Item 20 — Limpiar `rubocop:disable` en `lib/` agregados en v0.2.0
 
-**Estado:** `[ ]`
+**Estado:** `[x]`
 **Prioridad:** P2
 **Tipo:** `refactor`
 **Compatibilidad:** N/A
 **Estimación:** Depende del item 10 (refactor Engine#call)
 **Release sugerido:** v0.3.0 (junto con item 10)
+**Commit:** `f6f4ddc` (FileIngestor), `02d207c` (S3 refactor), `5522c79` (Timing mixin)
 
 ##### Contexto
 

@@ -1,5 +1,28 @@
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-15
+
+### Refactor
+- `Engine#call` refactorizado: extraídos `step_count`, `step_export`, `step_verify`, `step_purge` como métodos privados con `timed` helper. CC bajó de 13 a 5. Eventos emitidos idénticos al comportamiento anterior. (item 10)
+- Extraído `DataDrain::Observability::Timing` mixin compartido entre Engine y FileIngestor. (item 20)
+- `FileIngestor#call` refactorizado análogo a Engine. (item 20)
+- Eliminados todos los `# rubocop:disable Metrics/*` en `lib/`. (item 20)
+
+### Features
+- `config.vacuum_after_purge = false` (default). Si `true`, ejecuta `VACUUM ANALYZE` post-purga cuando hubo deletes. Emite `engine.vacuum_complete` con dead_tuples antes/después y duración. Errores PG se capturan como `engine.vacuum_error` WARN. (item 5)
+- `config.slow_batch_threshold_s = 30` y `config.slow_batch_alert_after = 5`. Detecta lotes de purga lentos. Emite `engine.slow_batch` WARN por cada lote lento, `engine.purge_degraded` WARN una vez por streak. Incluye hint a docs de tuning. (item 11b)
+
+### Security
+- `Record.connection` aplica `SET lock_configuration=true` post-setup. Congela cualquier SET futuro sobre la conexión (defensa en profundidad). NO afecta secrets ni extensiones ya cargadas. (item 6)
+
+### Telemetry nueva
+- `engine.vacuum_complete`, `engine.vacuum_error`, `engine.slow_batch`, `engine.purge_degraded`.
+
+### Tests
+- Coverage se mantiene ≥ 80%.
+- Nuevo test de equivalencia para Engine (eventos idénticos pre/post refactor).
+- Timecop agregado para tests de timing (item 11b).
+
 ## [0.2.2] - 2026-04-14
 
 ### Security
