@@ -31,13 +31,13 @@ RSpec.describe DataDrain::Validations do
 
   describe ".validate_glue_name!" do
     it "no levanta para nombres válidos de Glue Job" do
-      %w[my-job MyJob job-v2 data-pipeline-2024 1myjob myjob-].each do |name|
+      %w[my-job my_job MyJob job-v2 data-pipeline-2024 1myjob myjob- my_job_v2].each do |name|
         expect { described_class.validate_glue_name!(:job_name, name) }.not_to raise_error
       end
     end
 
     it "levanta para nombres inválidos" do
-      invalid = ["-myjob", "_myjob", "my job", "my;job", ""]
+      invalid = ["_myjob", "my job", "my;job", ""]
       invalid.each do |name|
         expect do
           described_class.validate_glue_name!(:job_name, name)

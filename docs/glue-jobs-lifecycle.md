@@ -85,24 +85,28 @@ job = DataDrain::GlueRunner.update_job(
 - Lanza `DataDrain::ConfigurationError` si `job_name` es inválido.
 - Lanza `Aws::Glue::Errors::EntityNotFoundException` si el job no existe.
 
-### `delete_job(job_name)` → nil
+### `delete_job(job_name)` → Boolean
 
-Elimina un job de Glue.
+Elimina un job de Glue. Es idempotente.
 
 ```ruby
 DataDrain::GlueRunner.delete_job("my-job")
-# => nil
+# => true (job existía y fue eliminado)
+
+DataDrain::GlueRunner.delete_job("nonexistent")
+# => false (job no existía)
 ```
 
 - Lanza `DataDrain::ConfigurationError` si `job_name` es inválido.
-- Lanza `Aws::Glue::Errors::EntityNotFoundException` si el job no existe.
+- Lanza otros errores de AWS sin atrapar.
 
 ### `ensure_job(job_name, role_arn:, script_location:, ...)` → Aws::Glue::Types::Job
 
-Crea o actualiza un job de forma idempotente.
+Crea o actualiza un job de forma idempotente con diffing de configuración.
 
-- Si el job existe → `update_job`
 - Si el job no existe → `create_job`
+- Si el job existe con config diferente → `update_job`
+- Si el job existe con config idéntica → no-op, retorna el job actual (`:unchanged`)
 
 ```ruby
 job = DataDrain::GlueRunner.ensure_job(
@@ -135,15 +139,16 @@ DataDrain::GlueRunner.run_and_wait(
 
 ## Convenciones de nombres
 
-AWS Glue permite: letras (`a-zA-Z`), números (`0-9`), guiones (`-`). No permite guiones bajos ni espacios.
+AWS Glue permite: letras (`a-zA-Z`), números (`0-9`), guiones (`-`), guiones bajos (`_`). No permite espacios ni caracteres especiales.
 
 ```ruby
 # Válido
 DataDrain::GlueRunner.job_exists?("my-export-job-v2")
+DataDrain::GlueRunner.job_exists?("my_export_job")
 
 # Inválido — lanza ConfigurationError
-DataDrain::GlueRunner.job_exists?("my_export_job")
-# DataDrain::ConfigurationError: job_name 'my_export_job' no es un nombre válido para Glue Job
+DataDrain::GlueRunner.job_exists?("-starts-with-dash")
+# DataDrain::ConfigurationError: job_name '-starts-with-dash' no es un nombre válido para Glue Job
 ```
 
 ## Eventos de telemetría
@@ -151,8 +156,16 @@ DataDrain::GlueRunner.job_exists?("my_export_job")
 | Evento | Nivel | Descripción |
 |--------|-------|-------------|
 | `glue_runner.start` | INFO | Antes de `start_job_run` |
-| `glue_runner.job_exists` | INFO | Job encontrado en `ensure_job` |
+| `glue_runner.job_create` | INFO | Job creado exitosamente |
+| `glue_runner.job_update` | INFO | Job actualizado (incluye `changed_fields`) |
+| `glue_runner.job_delete` | INFO | Job eliminado exitosamente |
+| `glue_runner.job_delete_skipped` | INFO | `delete_job` sobre job inexistente |
+| `glue_runner.job_exists` | INFO | Job encontrado en `ensure_job` (y difiere) |
 | `glue_runner.job_created` | INFO | Job creado en `ensure_job` |
+| `glue_runner.job_unchanged` | INFO | Job existe con config idéntica en `ensure_job` |
+| `glue_runner.job_create_error` | ERROR | Error en `create_job` |
+| `glue_runner.job_update_error` | ERROR | Error en `update_job` |
+| `glue_runner.job_delete_error` | ERROR | Error en `delete_job` |
 | `glue_runner.polling` | INFO | Chequeo de estado durante `run_and_wait` |
 | `glue_runner.complete` | INFO | Job terminó `SUCCEEDED` |
 | `glue_runner.failed` | ERROR | Job falló con `FAILED\|STOPPED\|TIMEOUT` |

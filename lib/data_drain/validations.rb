@@ -6,7 +6,7 @@ module DataDrain
     # Regex que valida identificadores SQL (tablas, columnas, etc.).
     # Permite letras, guiones bajos y números (no al inicio).
     IDENTIFIER_REGEX = /\A[a-zA-Z_][a-zA-Z0-9_]*\z/
-    GLUE_NAME_REGEX = /\A[a-zA-Z0-9][a-zA-Z0-9-]*\z/
+    GLUE_NAME_REGEX = /\A(?![_-])[a-zA-Z0-9_-]+\z/
 
     module_function
 
@@ -14,7 +14,7 @@ module DataDrain
       return if GLUE_NAME_REGEX.match?(value.to_s)
 
       raise DataDrain::ConfigurationError,
-            "#{name} '#{value}' no es un nombre válido para Glue Job (usa solo letras, números y guiones)"
+            "#{name} '#{value}' no es un nombre válido para Glue Job (usa solo letras, números, '-' y '_')"
     end
 
     def validate_identifier!(name, value)
