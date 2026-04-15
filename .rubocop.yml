@@ -1,7 +1,17 @@
 AllCops:
   TargetRubyVersion: 3.2
+  NewCops: disable
+
+Metrics/BlockLength:
   Exclude:
-    - spec/
+    - spec/**/*_spec.rb
+    - data_drain.gemspec
+
+Naming/VariableNumber:
+  EnforcedStyle: normalcase
+  AllowedIdentifiers:
+    - expected_partition_42
+    - expected_partition_99
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes

@@ -130,10 +130,10 @@ RSpec.describe DataDrain::Storage::S3 do
         "my-bucket", "versions", %i[isp_id year month], { isp_id: 42, year: 2026, month: 3 }
       )
 
-      expect(deleted_objects.map { |o| o[:key] }).to match_array([
-                                                                   "versions/isp_id=42/year=2026/month=3/data.parquet",
-                                                                   "versions/isp_id=42/year=2026/month=3/metadata.parquet"
-                                                                 ])
+      expect(deleted_objects.map { |o| o[:key] }).to match_array(
+        ["versions/isp_id=42/year=2026/month=3/data.parquet",
+         "versions/isp_id=42/year=2026/month=3/metadata.parquet"]
+      )
     end
 
     it "retorna 0 si no hay objetos para borrar" do

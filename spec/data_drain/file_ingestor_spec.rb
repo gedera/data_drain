@@ -121,7 +121,8 @@ RSpec.describe DataDrain::FileIngestor do
       source_path: json_path,
       folder_name: folder_name,
       partition_keys: %w[isp_id],
-      select_sql: "*, EXTRACT(YEAR FROM CAST(timestamp AS TIMESTAMP))::INT AS year, EXTRACT(MONTH FROM CAST(timestamp AS TIMESTAMP))::INT AS month",
+      select_sql: "*, EXTRACT(YEAR FROM CAST(timestamp AS TIMESTAMP))::INT AS year, " \
+                  "EXTRACT(MONTH FROM CAST(timestamp AS TIMESTAMP))::INT AS month",
       delete_after_upload: false
     )
 
@@ -146,7 +147,8 @@ RSpec.describe DataDrain::FileIngestor do
       source_path: parquet_path,
       folder_name: folder_name,
       partition_keys: %w[isp_id],
-      select_sql: "*, EXTRACT(YEAR FROM CAST(timestamp AS TIMESTAMP))::INT AS year, EXTRACT(MONTH FROM CAST(timestamp AS TIMESTAMP))::INT AS month",
+      select_sql: "*, EXTRACT(YEAR FROM CAST(timestamp AS TIMESTAMP))::INT AS year, " \
+                  "EXTRACT(MONTH FROM CAST(timestamp AS TIMESTAMP))::INT AS month",
       delete_after_upload: false
     )
 
@@ -162,7 +164,8 @@ RSpec.describe DataDrain::FileIngestor do
       source_path: csv_path,
       folder_name: folder_name,
       partition_keys: %w[isp_id year month],
-      select_sql: "*, EXTRACT(YEAR FROM CAST(timestamp AS TIMESTAMP))::INT AS year, EXTRACT(MONTH FROM CAST(timestamp AS TIMESTAMP))::INT AS month",
+      select_sql: "*, EXTRACT(YEAR FROM CAST(timestamp AS TIMESTAMP))::INT AS year, " \
+                  "EXTRACT(MONTH FROM CAST(timestamp AS TIMESTAMP))::INT AS month",
       delete_after_upload: false
     )
 
@@ -170,14 +173,14 @@ RSpec.describe DataDrain::FileIngestor do
     expect(ingestor.call).to be true
 
     # Verificamos que DuckDB haya creado las particiones en el disco local
-    partition_42 = File.join(bucket, folder_name, "isp_id=42", "year=2026", "month=3")
-    partition_99 = File.join(bucket, folder_name, "isp_id=99", "year=2026", "month=4")
+    expected_partition_42 = File.join(bucket, folder_name, "isp_id=42", "year=2026", "month=3")
+    expected_partition_99 = File.join(bucket, folder_name, "isp_id=99", "year=2026", "month=4")
 
-    expect(Dir.exist?(partition_42)).to be true
-    expect(Dir.exist?(partition_99)).to be true
+    expect(Dir.exist?(expected_partition_42)).to be true
+    expect(Dir.exist?(expected_partition_99)).to be true
 
     # Verificamos que los archivos Parquet realmente existan dentro
-    expect(Dir.glob("#{partition_42}/*.parquet")).not_to be_empty
-    expect(Dir.glob("#{partition_99}/*.parquet")).not_to be_empty
+    expect(Dir.glob("#{expected_partition_42}/*.parquet")).not_to be_empty
+    expect(Dir.glob("#{expected_partition_99}/*.parquet")).not_to be_empty
   end
 end

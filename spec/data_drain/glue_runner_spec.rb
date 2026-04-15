@@ -85,14 +85,13 @@ RSpec.describe DataDrain::GlueRunner do
       run_info = double("run_info", job_run_state: "FAILED", error_message: long_msg)
 
       expect(mock_client).to receive(:start_job_run).and_return(start_response)
-      expect(mock_client).to receive(:get_job_run)
-        .and_return(double("get_resp", job_run: run_info))
+      expect(mock_client).to receive(:get_job_run).and_return(
+        double("get_resp", job_run: run_info)
+      )
 
       expect do
         described_class.run_and_wait("failing-job")
-      end.to raise_error(RuntimeError) do |e|
-        expect(e.message.length).to be <= 220
-      end
+      end.to raise_error(RuntimeError) { |e| expect(e.message.length).to be <= 220 }
     end
 
     it "levanta cuando hay error_message" do
