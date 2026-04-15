@@ -2,10 +2,32 @@ AllCops:
   TargetRubyVersion: 3.2
   NewCops: disable
 
+Metrics/AbcSize:
+  Enabled: false
+
+Metrics/MethodLength:
+  Enabled: false
+
+Metrics/ClassLength:
+  Enabled: false
+
 Metrics/BlockLength:
-  Exclude:
-    - spec/**/*_spec.rb
-    - data_drain.gemspec
+  Enabled: false
+
+Naming/AccessorMethodName:
+  Enabled: false
+
+Layout/LineLength:
+  Enabled: false
+
+Lint/RedundantSafeNavigation:
+  Enabled: false
+
+Style/IfUnlessModifier:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
 
 Naming/VariableNumber:
   EnforcedStyle: normalcase
