@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description = "Extrae datos transaccionales, los archiva en un Data Lake (S3/Local) " \
                      "en formato Parquet usando Hive Partitioning, y purga el origen de forma segura."
   spec.homepage = "https://github.com/gedera/data_drain"
-  spec.required_ruby_version = ">= 3.0.0"
+  spec.required_ruby_version = ">= 3.2"
 
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
