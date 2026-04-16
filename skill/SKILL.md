@@ -271,7 +271,7 @@ Catálogo completo en [Antipatrones](references/antipatrones.md). Resumen de los
 ## Referencias
 
 - [API Detallada](references/api-detallada.md) — Firmas completas, parámetros, retornos y comportamientos de cada clase pública.
-- [Glue Jobs Lifecycle](https://github.com/gedera/data_drain/blob/main/docs/glue-jobs-lifecycle.md) — Guía completa de gestión de AWS Glue Jobs: crear, actualizar, eliminar, verificar y ejecutar jobs idempotentemente.
+- [Glue Jobs Lifecycle](https://github.com/sequre/data_drain/blob/main/docs/glue-jobs-lifecycle.md) — Guía completa de gestión de AWS Glue Jobs: crear, actualizar, eliminar, verificar y ejecutar jobs idempotentemente.
 - [Eventos y Telemetría](references/eventos-telemetria.md) — Catálogo completo de eventos KV emitidos por la gema.
 - [Antipatrones](references/antipatrones.md) — Qué NO hacer y alternativas correctas.
 - [Postgres Tuning](references/postgres-tuning.md) — Índices, VACUUM, particionamiento y diagnóstico por tamaño de tabla.

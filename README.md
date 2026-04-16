@@ -1,6 +1,6 @@
 # DataDrain
 
-[![CI](https://github.com/gedera/data_drain/actions/workflows/main.yml/badge.svg)](https://github.com/gedera/data_drain/actions/workflows/main.yml)
+[![CI](https://github.com/sequre/data_drain/actions/workflows/main.yml/badge.svg)](https://github.com/sequre/data_drain/actions/workflows/main.yml)
 
 Micro-framework Ruby para extraer, archivar y purgar datos históricos de PostgreSQL hacia un Data Lake (S3 o disco local) en formato Parquet, usando DuckDB en memoria.
 
@@ -18,7 +18,7 @@ Micro-framework Ruby para extraer, archivar y purgar datos históricos de Postgr
 
 ```ruby
 # Gemfile
-gem 'data_drain', git: 'https://github.com/gedera/data_drain.git', branch: 'main'
+gem 'data_drain', git: 'https://github.com/sequre/data_drain.git', branch: 'main'
 ```
 
 ```bash
